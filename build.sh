@@ -92,6 +92,17 @@ declare -a PATCHES=(
     # nano-editor.org/dist/latest/ is unreliable from CI environments;
     # use the stable version-specific path instead
     "nano-fix-srcurl.patch"
+
+    # SourceForge downloads.sf.net returns 404 from GitHub Actions IPs;
+    # switch to master.dl.sourceforge.net (SF's own CDN, no redirect)
+    "giflib-fix-srcurl.patch"
+    "procps-fix-srcurl.patch"
+    "net-tools-fix-srcurl.patch"
+
+    # infozip on SourceForge has an unusual path structure;
+    # use Debian pool mirrors (same content, guaranteed reliable)
+    "unzip-fix-srcurl.patch"
+    "zip-fix-srcurl.patch"
 )
 
 # Script configuration
