@@ -55,11 +55,16 @@ jobs:
                 -s layer-ide.gpg
             "
 
+      - name: Archive packages into tar (avoids colon-in-filename restriction)
+        run: |
+          tar -czf "packages-${{ matrix.arch }}.tar.gz" \
+            -C "output/${{ matrix.arch }}" .
+
       - name: Upload packages artifact
         uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.arch }}
-          path: output/${{ matrix.arch }}/
+          path: packages-${{ matrix.arch }}.tar.gz
           retention-days: 1
           if-no-files-found: error
 
@@ -81,13 +86,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: packages-aarch64
-          path: output/aarch64
+          path: .
 
       - name: Download built packages (arm)
         uses: actions/download-artifact@v4
         with:
           name: packages-arm
-          path: output/arm
+          path: .
+
+      - name: Extract packages
+        run: |
+          mkdir -p output/aarch64 output/arm
+          tar -xzf packages-aarch64.tar.gz -C output/aarch64
+          tar -xzf packages-arm.tar.gz     -C output/arm
 
       - name: Install dependencies
         run: |
