@@ -88,6 +88,10 @@ declare -a PATCHES=(
     # `libapr-1.so` needs to be linked against libandroid-shmem.so
     # in order to fix undefined symbol error when building subversion
     "apr-link-against-libandroid-shmem.patch"
+
+    # nano-editor.org/dist/latest/ is unreliable from CI environments;
+    # use the stable version-specific path instead
+    "nano-fix-srcurl.patch"
 )
 
 # Script configuration
