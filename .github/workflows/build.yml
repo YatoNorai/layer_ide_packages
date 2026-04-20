@@ -10,6 +10,7 @@ env:
   REPO_URL: https://packagesyatonorai.duckdns.org/apt/termux-main
   SSH_HOST: 158.101.9.154
   BUILDER_IMAGE: ghcr.io/termux/package-builder:latest
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
