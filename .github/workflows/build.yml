@@ -1,0 +1,218 @@
+name: Build Layer Packages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PACKAGE_NAME: com.layer.ide
+  REPO_URL: https://packagesyatonorai.duckdns.org/apt/termux-main
+  SSH_HOST: 158.101.9.154
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Phase 1 – Build packages (aarch64 and arm run in parallel)
+  # ──────────────────────────────────────────────────────────────────────────
+  build-packages:
+    name: Build packages (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/termux/package-builder:latest
+      options: --privileged
+    strategy:
+      matrix:
+        arch: [aarch64, arm]
+      fail-fast: false
+    timeout-minutes: 360   # builds can take up to 6 hours
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build packages for ${{ matrix.arch }}
+        run: |
+          mkdir -p output
+          ./build.sh \
+            -a "${{ matrix.arch }}" \
+            -p "$PACKAGE_NAME" \
+            -r "$REPO_URL" \
+            -s layer-ide.gpg
+
+      - name: Upload packages artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.arch }}
+          path: output/${{ matrix.arch }}/
+          retention-days: 1
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Phase 2 – Generate APT repository, sign it and upload to SSH server
+  # ──────────────────────────────────────────────────────────────────────────
+  publish-apt-repo:
+    name: Publish APT Repository
+    runs-on: ubuntu-latest
+    needs: [build-packages]
+
+    steps:
+      - name: Checkout repository (no submodules needed)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Download built packages (aarch64)
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-aarch64
+          path: output/aarch64
+
+      - name: Download built packages (arm)
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-arm
+          path: output/arm
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y wget gnupg rsync
+
+      - name: Generate APT repository
+        run: ./generate-apt-repo.sh
+
+      - name: Sign APT repository
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          # Import the private key (stored as base64 in the secret)
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+
+          # Detect key ID automatically
+          GPG_KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5}' | head -1)
+          echo "Signing repository with key: $GPG_KEY_ID"
+
+          # Create InRelease (clearsigned Release file)
+          echo "$GPG_PASSPHRASE" | \
+            gpg --batch \
+                --yes \
+                --passphrase-fd 0 \
+                --pinentry-mode loopback \
+                --default-key "$GPG_KEY_ID" \
+                --digest-algo SHA256 \
+                --clearsign \
+                -o output/repo/dists/stable/InRelease \
+                output/repo/dists/stable/Release
+
+      - name: Upload APT repository to SSH server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+          # Create the remote directory if it does not exist
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              "${{ secrets.SSH_USER }}@$SSH_HOST" \
+              "mkdir -p ${{ secrets.SSH_REMOTE_PATH }}"
+
+          # Sync repository files (--delete removes stale files on the server)
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            output/repo/ \
+            "${{ secrets.SSH_USER }}@$SSH_HOST:${{ secrets.SSH_REMOTE_PATH }}/"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Phase 3 – Generate Bootstrap archives (packages downloaded from SSH server)
+  # ──────────────────────────────────────────────────────────────────────────
+  generate-bootstrap:
+    name: Generate Bootstrap Archives
+    runs-on: ubuntu-latest
+    needs: [publish-apt-repo]
+    container:
+      image: ghcr.io/termux/package-builder:latest
+      options: --privileged
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Create output directories
+        run: |
+          mkdir -p output/aarch64
+          mkdir -p output/arm
+
+      - name: Generate debug bootstrap archives
+        run: |
+          ./generate-bootstrap-archive.sh \
+            -r "$REPO_URL"
+
+      - name: Generate release bootstrap archives
+        run: |
+          ./generate-bootstrap-archive.sh \
+            -g \
+            -r "$REPO_URL"
+
+      - name: Upload bootstrap artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-archives
+          path: |
+            output/bootstrap-*.zip
+            output/bootstrap-*.zip.9
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Phase 4 – Publish bootstrap archives as a GitHub Release
+  # ──────────────────────────────────────────────────────────────────────────
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [generate-bootstrap]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download bootstrap artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bootstrap-archives
+          path: bootstrap/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Layer Bootstrap Build #${{ github.run_number }}"
+          body: |
+            ## Layer Bootstrap Build \#${{ github.run_number }}
+
+            Bootstrap archives for **Layer IDE** (`com.layer.ide`).
+
+            | File | Description |
+            |------|-------------|
+            | `bootstrap-debug-aarch64.zip` | Debug bootstrap – ARM 64-bit |
+            | `bootstrap-debug-aarch64.zip.9` | Debug bootstrap – ARM 64-bit (brotli compressed) |
+            | `bootstrap-debug-arm.zip` | Debug bootstrap – ARM 32-bit |
+            | `bootstrap-debug-arm.zip.9` | Debug bootstrap – ARM 32-bit (brotli compressed) |
+            | `bootstrap-release-aarch64.zip` | Release bootstrap – ARM 64-bit |
+            | `bootstrap-release-aarch64.zip.9` | Release bootstrap – ARM 64-bit (brotli compressed) |
+            | `bootstrap-release-arm.zip` | Release bootstrap – ARM 32-bit |
+            | `bootstrap-release-arm.zip.9` | Release bootstrap – ARM 32-bit (brotli compressed) |
+
+            **APT Repository:** `https://packagesyatonorai.duckdns.org/apt/termux-main`
+            **Package name:** `com.layer.ide`
+            **Commit:** ${{ github.sha }}
+          draft: false
+          prerelease: false
+          files: bootstrap/*
+          generate_release_notes: false

@@ -20,13 +20,13 @@ TERMUX_PACKAGE_NAME="com.termux"
 export TERMUX_PACKAGE_NAME
 
 # The package name of the intended application
-COTG_PACKAGE_NAME="com.itsaky.androidide"
+COTG_PACKAGE_NAME="com.layer.ide"
 export COTG_PACKAGE_NAME
 
 # Path to the public key
 # this is used for signature verification
 # while installing packages
-COTG_GPG_KEY="$script_dir/adfa-dev-team.gpg"
+COTG_GPG_KEY="$script_dir/layer-ide.gpg"
 export COTG_GPG_KEY
 
 # Configure build environment variables
@@ -38,7 +38,7 @@ TERMUX_PKG_API_LEVEL=28
 export TERMUX_PKG_API_LEVEL
 
 # The URL of the repository where the packages will be published
-COTG_REPO="https://packages.appdevforall.org/apt/termux-main"
+COTG_REPO="https://packagesyatonorai.duckdns.org/apt/termux-main"
 export COTG_REPO
 
 # All supported CPU ABIs
