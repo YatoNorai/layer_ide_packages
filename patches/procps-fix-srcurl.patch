@@ -1,11 +1,12 @@
 --- a/packages/procps/build.sh
 +++ b/packages/procps/build.sh
-@@ -4,7 +4,7 @@ TERMUX_PKG_LICENSE="LGPL-2.0"
+@@ -4,7 +4,8 @@ TERMUX_PKG_LICENSE="LGPL-2.0"
  TERMUX_PKG_MAINTAINER="@termux"
  TERMUX_PKG_VERSION=3.3.17
  TERMUX_PKG_REVISION=6
 -TERMUX_PKG_SRCURL=https://sourceforge.net/projects/procps-ng/files/Production/procps-ng-$TERMUX_PKG_VERSION.tar.xz
-+TERMUX_PKG_SRCURL=https://master.dl.sourceforge.net/project/procps-ng/Production/procps-ng-$TERMUX_PKG_VERSION.tar.xz
++TERMUX_PKG_SRCURL=(http://deb.debian.org/debian/pool/main/p/procps/procps_${TERMUX_PKG_VERSION}.orig.tar.xz
++                   https://sourceforge.net/projects/procps-ng/files/Production/procps-ng-${TERMUX_PKG_VERSION}.tar.xz/download)
  TERMUX_PKG_SHA256=4518b3e7aafd34ec07d0063d250fd474999b20b200218c3ae56f5d2113f141b4
  TERMUX_PKG_DEPENDS="ncurses"
  TERMUX_PKG_BREAKS="procps-dev"
