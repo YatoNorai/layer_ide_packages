@@ -20,6 +20,8 @@ jobs:
     container:
       image: ghcr.io/termux/package-builder:latest
       options: --privileged
+      env:
+        HOME: /home/builder
     strategy:
       matrix:
         arch: [aarch64, arm]
@@ -138,6 +140,8 @@ jobs:
     container:
       image: ghcr.io/termux/package-builder:latest
       options: --privileged
+      env:
+        HOME: /home/builder
     timeout-minutes: 120
 
     steps:
