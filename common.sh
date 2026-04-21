@@ -95,13 +95,13 @@ declare -a PATCHES=(
     # Changes for our version of bootstrap-*.zip files
     # This also handles the process of creating a brotli archive
     # from the generated ZIP archive
-    "scripts-generate-bootstraps-CoGo-changes.patch"
+   # "scripts-generate-bootstraps-CoGo-changes.patch"
 
     # Update package name in termux-tools
     "termux-tools-update-package-name.patch"
 
     # Cleanup OpenJDK 21 to remove postinst & prerm scripts
-    "openjdk-21-cleanup.patch"
+ #   "openjdk-21-cleanup.patch"
 
     # Cleanup vim to remove postinst scripts
     "vim-cleanup.patch"
