@@ -21,41 +21,6 @@ index 825f2a886e..0e4ca238a1 100755
 +			repack_zip "$(realpath "$zip")"
 +		done < <(find . -type f -name \*.zip -print0)
 +
-+		# Repack ct.sym in JDKs
-+		echo "[*] Repacking ct.sym"
-+		jdk="21"
-+		dir="./lib/jvm/java-$jdk-openjdk"
-+		ctsym="$dir/lib/ct.sym"
-+		if ! [[ -f "$ctsym" ]]; then
-+			# Doesn't exist; continue
-+			echo "[!] JDK $jdk - ct.sym doesn't exist!"
-+			echo "[!] ${ctsym}"
-+			return 1
-+		fi
-+
-+		ctsym="$(realpath "$ctsym")"
-+		local temp
-+		temp=$(mktemp -d)
-+		(cd "$temp"
-+			unzip -qq "$ctsym"
-+			rm "$ctsym"
-+			zip -qr0 "ct.sym" ./*
-+			brotli -Zo "$ctsym" ct.sym
-+			ls -hal "$ctsym"
-+			rm ct.sym
-+		) && rm -rf "$temp" && echo "[*] JDK $jdk - ct.sym repacked"
-+
-+		# Strip all binary files
-+		echo "[*] Stripping binaries"
-+		find . -type f -exec hexdump -n 4 -e '4/1 "%2x" " {}\n"'  {} \; |\
-+			grep ^7f454c46 |\
-+			cut -d' ' -f2- |\
-+			xargs -L1 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-+
-+		# Remove demos from JDK
-+		echo "[*] Removing demo files in JDKs"
-+		rm -rf ./lib/jvm/java-*-openjdk/demo
-+
 +		# Create bootstrap ZIP file without compression
 +		echo "[*] Creating bootstrap archives"
 +		zip -qr0 "$bszip" ./*
