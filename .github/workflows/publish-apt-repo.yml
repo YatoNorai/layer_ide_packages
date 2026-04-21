@@ -1,103 +1,117 @@
-#!/usr/bin/env bash
+name: Publish APT Repository
 
-#
-# Copyright (C) 2025 Akash Yadav
-#
-# This file is part of The Scribe Project.
-#
-# Scribe is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Scribe is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Scribe.  If not, see <https://www.gnu.org/licenses/>.
-#
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'ID do run de build que gerou os pacotes (aba Actions → copie o número do run)'
+        required: true
+        type: string
 
-set -euo pipefail
+env:
+  SSH_HOST: 158.101.9.154
 
-script=$(realpath "$0")
-script_dir=$(dirname "$script")
+jobs:
+  publish:
+    name: Download → APT repo → Upload
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read   # needed to download artifacts from another run
 
-# shellcheck source=common.sh
-. "$script_dir/common.sh"
+    steps:
+      - name: Checkout repository (no submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
 
-# Supported architectures
-declare -a ARCHS=(
-    "aarch64"
-    "arm"
-)
+      # ── Download artifacts from the build run ─────────────────────────────
+      - name: Download packages-aarch64
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-aarch64
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .
 
-termux_packages="$script_dir/termux-packages"
-output_dir="$script_dir/output"
-repo_dir="${COTG_REPO_DIR}"
-debs_dir="$output_dir/debs"
-termux_apt_repo="$output_dir/termux-apt-repo"
+      - name: Download packages-arm
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-arm
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .
 
-# Clean
-rm -rf "$debs_dir"
-rm -rf "$repo_dir"
+      # ── Extract tarballs → output/{arch}/*.deb ────────────────────────────
+      - name: Extract packages
+        run: |
+          mkdir -p output/aarch64 output/arm
+          tar -xzf packages-aarch64.tar.gz -C output/aarch64
+          tar -xzf packages-arm.tar.gz     -C output/arm
+          echo "aarch64 debs: $(find output/aarch64 -maxdepth 1 -name '*.deb' | wc -l)"
+          echo "arm     debs: $(find output/arm     -maxdepth 1 -name '*.deb' | wc -l)"
 
-if ! [ -f "$termux_apt_repo" ]; then
-    # Download termux-apt-repo script
-    wget https://github.com/termux/termux-apt-repo/raw/refs/heads/master/termux-apt-repo -O "$termux_apt_repo"
+      # ── Install tools ─────────────────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y wget gnupg rsync dpkg
 
-    # Make it executable
-    chmod +x "$termux_apt_repo"
-fi
+      # ── Generate APT repository (same structure as Termux APT) ────────────
+      - name: Generate APT repository
+        run: |
+          sed -i 's/\r//' generate-apt-repo.sh common.sh utils.sh packages.sh
+          bash generate-apt-repo.sh
 
-# Create dirs
-mkdir -p "$debs_dir"
-mkdir -p "$repo_dir"
+      # ── Sign Release file → InRelease ─────────────────────────────────────
+      - name: Sign APT repository
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          GPG_KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5}' | head -1)
+          echo "Signing with key: $GPG_KEY_ID"
+          echo "$GPG_PASSPHRASE" | \
+            gpg --batch \
+                --yes \
+                --passphrase-fd 0 \
+                --pinentry-mode loopback \
+                --default-key "$GPG_KEY_ID" \
+                --digest-algo SHA256 \
+                --clearsign \
+                -o output/repo/dists/stable/InRelease \
+                output/repo/dists/stable/Release
+          echo "Repository signed ✓"
+          echo "--- Repository structure ---"
+          find output/repo -type f | sort
 
-# Add symlinks to deb files to the repo dir
-for arch in "${ARCHS[@]}"; do
-    find "$output_dir/$arch"\
-        -mindepth 1\
-        -maxdepth 1\
-        -type f\
-        -name "*.deb"\
-        -exec ln -sf {} "$debs_dir/" \; ||\
-        scribe_error_exit "Failed to symlink '$arch' debs"
-done
+      # ── Upload to SSH server ───────────────────────────────────────────────
+      - name: Upload APT repository to SSH server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
-# Generate APT repository
-"$termux_apt_repo" "$debs_dir" "$repo_dir" stable main ||\
-    scribe_error_exit "Failed to create local API repository"
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          REMOTE="${{ secrets.SSH_USER }}@$SSH_HOST"
+          RPATH="${{ secrets.SSH_REMOTE_PATH }}"
 
-# Generate Contents-{arch}.gz files required by packages such as
-# command-not-found that fetch file-to-package mappings at build time.
-# Format per line: <filepath>\t<section>/<package>
-for arch in "${ARCHS[@]}"; do
-    contents_tmp=$(mktemp)
+          # Create directory and grant write permission to the deploy user.
+          # Uses sudo because /var/www/html is typically owned by root/www-data.
+          $SSH "$REMOTE" "
+            sudo mkdir -p '$RPATH' && \
+            sudo chown -R \$USER:\$USER '$RPATH' && \
+            sudo chmod -R 755 '$RPATH'
+          "
 
-    while IFS= read -r deb; do
-        pkg=$(dpkg-deb -f "$deb" Package 2>/dev/null)      || continue
-        section=$(dpkg-deb -f "$deb" Section 2>/dev/null)  || section="utils"
-        [[ -z "$pkg" ]] && continue
+          # Sync all repo files (--delete removes stale files on the server)
+          rsync -avz --delete \
+            --no-group \
+            -e "$SSH" \
+            output/repo/ \
+            "$REMOTE:$RPATH/"
 
-        dpkg-deb --contents "$deb" 2>/dev/null \
-            | awk -v entry="${section}/${pkg}" '
-                {
-                    path = $NF
-                    if (path == "./" || path ~ /\/$/) next
-                    sub(/^\.\//, "", path)
-                    print path "\t" entry
-                }
-            '
-    done < <(find "$output_dir/$arch" -maxdepth 1 -name "*.deb" 2>/dev/null) \
-        | sort >> "$contents_tmp"
-
-    dest="$repo_dir/dists/stable/Contents-${arch}"
-    mv "$contents_tmp" "$dest"
-    gzip -9 -f "$dest"
-    echo "Generated Contents-${arch}.gz"
-done
-
-# Clean
-rm -rf "$debs_dir"
+          echo "APT repository published at https://packagesyatonorai.duckdns.org/apt/termux-main ✓"
