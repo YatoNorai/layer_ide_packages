@@ -136,6 +136,31 @@ declare -a PATCHES=(
     "zip-fix-srcurl.patch")
 
 
+patch_bootstrap_generator() {
+    local bootstrap_script="$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh"
+
+    if [[ ! -f "$bootstrap_script" ]]; then
+        scribe_error_exit "Bootstrap generator not found: ${bootstrap_script}"
+    fi
+
+    # Remove bootstrap-only packages that are not available in our repo and
+    # are not required for the minimal bootstrap. We do this by filtering the
+    # package-pull lines directly so the patch keeps working even if upstream
+    # spacing or nearby comments change.
+    python - "$bootstrap_script" <<'PY2'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+text = re.sub(r'^\s*pull_package\s+command-not-found\s*\n', '', text, flags=re.M)
+text = re.sub(r'^\s*pull_package\s+proot\s*\n', '', text, flags=re.M)
+path.write_text(text)
+PY2
+}
+
+
 # Sets up the termux-packages submodule: substitutes package name,
 # installs the GPG key, generates template-based patches, applies
 # all patches, and updates the APT repository URL.
@@ -183,6 +208,8 @@ setup_termux_packages() {
     # Update the packages repository
     grep -rnI . -e "https://packages-cf.termux.dev/apt/termux-main" -l |\
         xargs -L1 sed -i "s|https://packages-cf.termux.dev/apt/termux-main|${COTG_REPO}|g"
+
+    patch_bootstrap_generator
 
     # Marked patched
     touch .scribe-patched
