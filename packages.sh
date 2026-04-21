@@ -1,23 +1,26 @@
 #!/usr/bin/env bash
 
-# Base packages, common for both debug and release builds
-declare -a COTG_PACKAGES__BASE
+# Minimal packages required for the bootstrap to function.
+# These are passed to generate-bootstraps.sh --add and represent
+# the smallest set that makes apt, the shell, and basic POSIX tools
+# available after first boot.  Everything else should be installed
+# via `apt install` at runtime.
+declare -a COTG_PACKAGES__BOOTSTRAP
 
-# These are the variant-specific additional packages
-# that are included in bootstrap archives
+# Extra packages added on top of the bootstrap for each variant.
+# Kept separate so the bootstrap archive stays small.
 declare -a COTG_PACKAGES__DEBUG
 declare -a COTG_PACKAGES__RELEASE
 
-# List of all packages
-# This is used to list all the packages
-# that we need to build
+# List of all packages that need to be built.
+# Used by build.sh / build-local.sh to know what to compile.
 declare -a COTG_PACKAGES
 
-COTG_PACKAGES__BASE=(
+# ---- Minimal bootstrap ----
+COTG_PACKAGES__BOOTSTRAP=(
 
-    ## ---- Bootstrap packages ---- ##
-
-    # Core utilities.
+    ## Core shell & package-manager dependencies.
+    ## Removing any of these will break apt or the login shell.
     "apt"
     "bash"
     "coreutils"
@@ -39,13 +42,48 @@ COTG_PACKAGES__BASE=(
     "termux-tools"
     "util-linux"
 
-    # Additional.
+    # Required by generate-bootstraps.sh when BOOTSTRAP_ANDROID10_COMPATIBLE=false
+    "command-not-found"
+)
+
+# ---- Variant-specific extras (installed via apt, not baked into bootstrap) ----
+
+# debug-only extras
+COTG_PACKAGES__DEBUG=(
+    "binutils-libs"
     "brotli"
-    "ed"
     "debianutils"
     "dos2unix"
+    "ed"
+    "file"
     "git"
     "inetutils"
+    "libprotobuf"
+    "libsqlite"
+    "lsof"
+    "mandoc"
+    "nano"
+    "net-tools"
+    "openjdk-21"
+    "patch"
+    "python"
+    "python-pip"
+    "unzip"
+    "vim"
+    "wget"
+    "which"
+    "zip"
+)
+
+# release-only extras
+COTG_PACKAGES__RELEASE=(
+    "brotli"
+    "debianutils"
+    "dos2unix"
+    "ed"
+    "git"
+    "inetutils"
+    "libprotobuf"
     "lsof"
     "mandoc"
     "nano"
@@ -53,49 +91,20 @@ COTG_PACKAGES__BASE=(
     "openjdk-21"
     "patch"
     "unzip"
-    "zip"
-)
-
-# debug-only packages
-COTG_PACKAGES__DEBUG=(
-    "binutils-libs"
-    "coreutils"
-    "file"
-    "libsqlite"
-    "python"
-    "python-pip"
-    "vim"
     "wget"
-    "which"
+    "zip"
+
+    # cmake and libllvm for Android SDK support
+    "cmake"
+    "libllvm"
 )
 
-# release-only packages
-COTG_PACKAGES__RELEASE=()
-
-# All packages
+# All packages that need to be compiled/available in the repo.
 COTG_PACKAGES=(
-    "${COTG_PACKAGES__BASE[@]}"
+    "${COTG_PACKAGES__BOOTSTRAP[@]}"
     "${COTG_PACKAGES__DEBUG[@]}"
     "${COTG_PACKAGES__RELEASE[@]}"
 )
 
-# Extra packages that need to be available
-# for use in Code On the Go
-# Note: When adding new packages here,
-#   mention the reason for inclusion
-COTG_PACKAGES+=(
-
-    # Required for self-bootstrapping Code On the Go
-    "libprotobuf"
-
-    # Commonly used tools
-    "wget"
-
-    # cmake and libllvm for Android
-    # useful for Android SDK
-    "cmake"
-    "libllvm"
-
-    # Required by generate-bootstraps.sh when BOOTSTRAP_ANDROID10_COMPATIBLE=false
-    "command-not-found"
-)
+# De-duplicate (bash does not do this automatically)
+readarray -t COTG_PACKAGES < <(printf '%s\n' "${COTG_PACKAGES[@]}" | sort -u)
