@@ -133,8 +133,20 @@ declare -a PATCHES=(
     # infozip on SourceForge has an unusual path structure;
     # use Debian pool mirrors (same content, guaranteed reliable)
     "unzip-fix-srcurl.patch"
-    "zip-fix-srcurl.patch"
-)
+    "zip-fix-srcurl.patch")
+
+remove_command_not_found_bootstrap_dependency() {
+    local bootstrap_script="$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh"
+
+    if [[ ! -f "$bootstrap_script" ]]; then
+        return 0
+    fi
+
+    # Older termux-packages revisions still pull command-not-found into the
+    # bootstrap generation flow. This project ships a minimal bootstrap and
+    # does not need that package, so rewrite the conditional in place.
+    perl -0pi -e 's/\n[[:space:]]*if ! \$\{BOOTSTRAP_ANDROID10_COMPATIBLE\}; then\n[[:space:]]*pull_package command-not-found\n[[:space:]]*else\n[[:space:]]*pull_package proot\n[[:space:]]*fi/\n\tif ${BOOTSTRAP_ANDROID10_COMPATIBLE}; then\n\t\tpull_package proot\n\tfi/s' "$bootstrap_script"
+}
 
 # Sets up the termux-packages submodule: substitutes package name,
 # installs the GPG key, generates template-based patches, applies
@@ -183,6 +195,9 @@ setup_termux_packages() {
     # Update the packages repository
     grep -rnI . -e "https://packages-cf.termux.dev/apt/termux-main" -l |\
         xargs -L1 sed -i "s|https://packages-cf.termux.dev/apt/termux-main|${COTG_REPO}|g"
+
+    # Remove the command-not-found dependency from bootstrap generation.
+    remove_command_not_found_bootstrap_dependency
 
     # Marked patched
     touch .scribe-patched
