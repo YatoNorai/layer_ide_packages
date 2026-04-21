@@ -143,9 +143,9 @@ patch_bootstrap_generator() {
         scribe_error_exit "Bootstrap generator not found: ${bootstrap_script}"
     fi
 
-    # Replace the command-not-found/proot branch with a no-op.
-    # This preserves shell syntax while removing the extra package pulls
-    # that are not needed for the minimal bootstrap.
+    # Remove the Android 10-only package branch that pulls command-not-found
+    # or proot. Keep the surrounding shell syntax intact by replacing the
+    # whole block with a no-op.
     python - "$bootstrap_script" <<'PY2'
 from pathlib import Path
 import re
@@ -153,16 +153,18 @@ import sys
 
 path = Path(sys.argv[1])
 text = path.read_text()
-pattern = re.compile(r"if ! \${BOOTSTRAP_ANDROID10_COMPATIBLE}; then.*?fi\s*\n", re.S)
-replacement = """if ! ${BOOTSTRAP_ANDROID10_COMPATIBLE}; then
-
-    : # minimal bootstrap: no command-not-found or proot
-
-fi
-"""
+pattern = re.compile(
+    r"if ! \${BOOTSTRAP_ANDROID10_COMPATIBLE}; then\s*"
+    r"pull_package command-not-found\s*"
+    r"else\s*"
+    r"pull_package proot\s*"
+    r"fi\s*",
+    re.S,
+)
+replacement = ": # minimal bootstrap: no command-not-found or proot\n\n"
 text, count = pattern.subn(replacement, text, count=1)
 if count != 1:
-    raise SystemExit('expected bootstrap package-manager block not found')
+    raise SystemExit('expected command-not-found/proot block not found')
 path.write_text(text)
 PY2
 }
