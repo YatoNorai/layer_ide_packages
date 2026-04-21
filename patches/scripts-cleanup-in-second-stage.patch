@@ -53,9 +53,9 @@ index 723993d6dc..2889c7e919 100755
 +	dir="$TERMUX_PREFIX/lib/jvm/java-$jdk-openjdk"
 +	ctsym="$dir/lib/ct.sym"
 +	if ! [[ -f "$ctsym" ]]; then
-+		# Doesn't exist; continue
-+		log "JDK $jdk - ct.sym doesn't exist!"
-+		continue
++		# JDK not installed; skip ct.sym restore gracefully
++		log "JDK $jdk - ct.sym not found, skipping."
++		return 0
 +	fi
 +
 +	ctsym="$(realpath "$ctsym")"
