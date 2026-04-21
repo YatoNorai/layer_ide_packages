@@ -95,16 +95,23 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
-          # Ensure remote directory exists
-          ssh -i ~/.ssh/deploy_key \
-              -o StrictHostKeyChecking=no \
-              "${{ secrets.SSH_USER }}@$SSH_HOST" \
-              "mkdir -p ${{ secrets.SSH_REMOTE_PATH }}"
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          REMOTE="${{ secrets.SSH_USER }}@$SSH_HOST"
+          RPATH="${{ secrets.SSH_REMOTE_PATH }}"
 
-          # Sync all repo files (--delete removes stale files)
+          # Create directory and grant write permission to the deploy user.
+          # Uses sudo because /var/www/html is typically owned by root/www-data.
+          $SSH "$REMOTE" "
+            sudo mkdir -p '$RPATH' && \
+            sudo chown -R \$USER:\$USER '$RPATH' && \
+            sudo chmod -R 755 '$RPATH'
+          "
+
+          # Sync all repo files (--delete removes stale files on the server)
           rsync -avz --delete \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            --no-group \
+            -e "$SSH" \
             output/repo/ \
-            "${{ secrets.SSH_USER }}@$SSH_HOST:${{ secrets.SSH_REMOTE_PATH }}/"
+            "$REMOTE:$RPATH/"
 
           echo "APT repository published at https://packagesyatonorai.duckdns.org/apt/termux-main ✓"
