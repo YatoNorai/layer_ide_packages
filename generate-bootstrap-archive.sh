@@ -29,31 +29,25 @@ usage() {
 
 normalize_bootstrap_archive() {
     local generated_zip="$1"
+    local repo="$2"
     local temp_dir
     local extracted_dir
-    local normalized_zip
-    local normalized_zip9
-    local base_name
+    local apt_dir
 
     temp_dir=$(mktemp -d)
     extracted_dir="${temp_dir}/extracted"
-    mkdir -p "$extracted_dir"
-
-    base_name=$(basename "$generated_zip")
-    normalized_zip="${temp_dir}/${base_name}"
-    normalized_zip9="${temp_dir}/${base_name}.9"
+    apt_dir="${extracted_dir}/etc/apt"
+    mkdir -p "$extracted_dir" "$apt_dir"
 
     unzip -qq "$generated_zip" -d "$extracted_dir"
     rm -f "$generated_zip" "${generated_zip}.9"
 
-    (
-        cd "$extracted_dir"
-        zip -qr0 "$normalized_zip" ./*
-        zip -qr9 "$normalized_zip9" ./*
-    )
+    cat > "${apt_dir}/sources.list" <<EOF
+deb ${repo} stable main
+EOF
 
-    mv "$normalized_zip" "$generated_zip"
-    mv "$normalized_zip9" "${generated_zip}.9"
+    (cd "$extracted_dir" && zip -qr0 "$generated_zip" ./*)
+    (cd "$extracted_dir" && zip -qr9 "${generated_zip}.9" ./*)
 
     rm -rf "$temp_dir"
 }
@@ -84,7 +78,7 @@ build_boostrap() {
 
     echo
     echo "==="
-    echo "Building bootstrap: $(realpath --relative-to="$(pwd)" "${bootstrap_out}")"
+    echo "Building bootstrap: $(realpath --relative-to="$(pwd)" ${bootstrap_out})"
     echo "==="
     echo
 
@@ -106,7 +100,7 @@ build_boostrap() {
 
     # Normalize the generated archive so we always ship
     # the minimal uncompressed ZIP plus the max-compressed variant.
-    normalize_bootstrap_archive "${bootstrap_name}"
+    normalize_bootstrap_archive "${bootstrap_name}" "$repo"
 
     # Rename the built files
     mv "${bootstrap_name}" "${bootstrap_out}"
