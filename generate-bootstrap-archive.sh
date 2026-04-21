@@ -41,7 +41,11 @@ normalize_bootstrap_archive() {
     extracted_dir="${temp_dir}/extracted"
     apt_dir="${extracted_dir}/etc/apt"
 
-    mkdir -p "$extracted_dir" "$apt_dir"
+    mkdir -p "$extracted_dir" \
+             "$apt_dir" \
+             "${apt_dir}/apt.conf.d" \
+             "${apt_dir}/preferences.d" \
+             "${extracted_dir}/var/log/apt"
 
     base_name=$(basename "$generated_zip")
     normalized_zip="${temp_dir}/${base_name}"
