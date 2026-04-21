@@ -71,6 +71,4 @@ COTG_PACKAGES+=(
     "cmake"
     "libllvm"
 
-    # Required by generate-bootstraps.sh when BOOTSTRAP_ANDROID10_COMPATIBLE=false
-    "command-not-found"
 )
