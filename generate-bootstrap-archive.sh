@@ -26,30 +26,50 @@ usage() {
     echo "  -h        Show this help message and exit."
 }
 
+# === FUNÇÃO CORRIGIDA ===
 normalize_bootstrap_archive() {
     local generated_zip="$1"
     local repo="$2"
     local temp_dir
     local extracted_dir
     local apt_dir
+    local normalized_zip
+    local normalized_zip9
+    local base_name
 
     temp_dir=$(mktemp -d)
     extracted_dir="${temp_dir}/extracted"
     apt_dir="${extracted_dir}/etc/apt"
+
     mkdir -p "$extracted_dir" "$apt_dir"
 
+    base_name=$(basename "$generated_zip")
+    normalized_zip="${temp_dir}/${base_name}"
+    normalized_zip9="${temp_dir}/${base_name}.9"
+
+    # Extrai o bootstrap gerado pelo Termux
     unzip -qq "$generated_zip" -d "$extracted_dir"
     rm -f "$generated_zip" "${generated_zip}.9"
 
+    # === CONFIGURAÇÃO DO SERVIDOR APT (o que você pediu) ===
     cat > "${apt_dir}/sources.list" <<EOF
 deb ${repo} stable main
 EOF
 
-    (cd "$extracted_dir" && zip -qr0 "$generated_zip" ./*)
-    (cd "$extracted_dir" && zip -qr9 "${generated_zip}.9" ./*)
+    # Cria os dois arquivos zip (igual na versão original que funcionava)
+    (
+        cd "$extracted_dir"
+        zip -qr0 "$normalized_zip" ./*
+        zip -qr9 "$normalized_zip9" ./*
+    )
+
+    # Move de volta para o local original
+    mv "$normalized_zip" "$generated_zip"
+    mv "$normalized_zip9" "${generated_zip}.9"
 
     rm -rf "$temp_dir"
 }
+# ========================
 
 build_boostrap() {
     variant="$1"
@@ -63,11 +83,9 @@ build_boostrap() {
     if [[ -z "$variant" ]]; then
         scribe_error_exit "Target variant must not be empty"
     fi
-
     if [[ -z "$arch" ]]; then
         scribe_error_exit "Target arch must not be empty"
     fi
-
     if [[ -z "$repo" ]]; then
         scribe_error_exit "Target repo must not be empty"
     fi
@@ -97,9 +115,7 @@ build_boostrap() {
         scribe_error_exit "Failed to generate boostrap for ${arch} ${variant}."
     fi
 
-    # Normalize the generated archive so we always ship
-    # the minimal uncompressed ZIP plus the max-compressed variant.
-    # Agora inclui a configuração do servidor APT (sources.list).
+    # Normaliza (agora com sources.list do APT)
     normalize_bootstrap_archive "${bootstrap_name}" "$repo"
 
     # Rename the built files
@@ -137,7 +153,6 @@ if [[ -z "${COTG_REPO}" ]]; then
 fi
 
 COTG_VARIANT="debug"
-
 declare -a COTG_EXTRA_PACKAGES
 COTG_EXTRA_PACKAGES=("${COTG_PACKAGES__BASE[@]}")
 
@@ -153,9 +168,6 @@ echo "  Variant        : ${COTG_VARIANT}"
 echo "  Repository     : ${COTG_REPO}"
 echo "  Extra packages : ${COTG_EXTRA_PACKAGES[@]}"
 
-# Set up termux-packages (package name substitution, GPG key, all patches).
-# This is required before generate-bootstraps.sh runs so that paths and
-# scripts use com.layer.ide instead of com.termux.
 setup_termux_packages
 
 for arch in aarch64 arm; do
