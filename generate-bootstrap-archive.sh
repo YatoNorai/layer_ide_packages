@@ -82,6 +82,7 @@ build_boostrap() {
     if ! {
         set -x
         time "$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh" \
+            --android10 \
             --architectures "$arch" \
             --repository "$repo" \
             --add "${packages}" |&\
