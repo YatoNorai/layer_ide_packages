@@ -84,8 +84,7 @@ index 825f2a886e..0e4ca238a1 100755
  show_usage() {
  	echo
  	echo "Usage: generate-bootstraps.sh [options]"
-@@ -452,9 +512,7 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do
- 	# Core utilities.
+@@ -452,9 +512,7 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do 	# Core utilities.
  	pull_package bash # Used by `termux-bootstrap-second-stage.sh`
  	pull_package bzip2
 -	if ! ${BOOTSTRAP_ANDROID10_COMPATIBLE}; then
