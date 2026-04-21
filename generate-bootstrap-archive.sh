@@ -67,19 +67,86 @@ setup_bootstrap_patches() {
         fi
     done
 
-    # add_termux_bootstrap_second_stage_files() writes a fallback script into
-    # etc/profile.d/ but never creates the directory first, causing a "No such
-    # file or directory" error when the directory is absent from the rootfs.
-    # Insert a mkdir -p immediately before the offending redirect.
-    local gen_bs="$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh"
-    if grep -q "01-termux-bootstrap-second-stage-fallback.sh" "$gen_bs" && \
-       ! grep -q 'mkdir.*profile\.d' "$gen_bs"; then
-        scribe_info "Patching generate-bootstraps.sh: adding mkdir -p for etc/profile.d"
-        sed -i \
-            '/01-termux-bootstrap-second-stage-fallback\.sh/i\\tmkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/etc/profile.d"' \
-            "$gen_bs"
-        scribe_ok "Patched etc/profile.d mkdir"
-    fi
+    # Use Python to make targeted fixes to generate-bootstraps.sh that cannot
+    # be expressed cleanly as patch hunks without the full original source:
+    #
+    # Fix 1 – add_termux_bootstrap_second_stage_files() writes a profile.d
+    # fallback script but never creates etc/profile.d first.  We insert a
+    # mkdir -p immediately before the specific redirect/cat line that opens
+    # the file for writing.  Using Python (not sed) avoids matching the same
+    # filename when it appears inside the heredoc body of the fallback script.
+    #
+    # Fix 2 – GNU sed has no -p flag; p is an in-script command.  Any
+    # 'sed -p' call would fail with "invalid option -- 'p'".  Convert those
+    # occurrences to the correct 'sed -n' … '/pattern/p' idiom.
+    python3 - "$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh" << 'PYEOF'
+import sys, re
+
+path = sys.argv[1]
+with open(path, 'r') as f:
+    lines = f.readlines()
+
+# ---- Fix 1: mkdir -p for etc/profile.d ----
+FALLBACK_SCRIPT = "01-termux-bootstrap-second-stage-fallback.sh"
+MKDIR_LINE = '\tmkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/etc/profile.d"\n'
+
+already_has_mkdir = any(
+    "mkdir" in l and "profile.d" in l for l in lines
+)
+
+if not already_has_mkdir:
+    new_lines = []
+    in_heredoc = False
+    heredoc_delim = None
+
+    for line in lines:
+        # Track heredoc boundaries so we never insert inside one
+        if not in_heredoc:
+            hm = re.search(r"<<\s*'?([A-Z_]+)'?", line)
+            if hm and FALLBACK_SCRIPT not in line:
+                # entering a heredoc that is NOT the fallback-script creator
+                in_heredoc = True
+                heredoc_delim = hm.group(1)
+            elif (FALLBACK_SCRIPT in line
+                  and re.search(r'(cat\s*>|>\s*["\x27])', line)
+                  and "mkdir" not in line):
+                # This is the redirect that creates the fallback script
+                new_lines.append(MKDIR_LINE)
+        else:
+            if line.rstrip("\n") == heredoc_delim:
+                in_heredoc = False
+                heredoc_delim = None
+
+        new_lines.append(line)
+
+    lines = new_lines
+    print("Fix 1 applied: mkdir -p for etc/profile.d inserted")
+else:
+    print("Fix 1 skipped: mkdir for profile.d already present")
+
+# ---- Fix 2: sed -p → sed -n (GNU sed has no -p option) ----
+fixed_sed = False
+out_lines = []
+for line in lines:
+    # Match bare 'sed -p' or combined flags containing p (e.g. sed -ip, sed -np)
+    # but NOT sed expressions that happen to contain 'p' as a substitute flag
+    patched = re.sub(
+        r'\bsed(\s+(?:-[a-zA-Z]*)?)\s+-p\b',
+        lambda m: "sed" + m.group(1) + " -n",
+        line,
+    )
+    if patched != line:
+        fixed_sed = True
+    out_lines.append(patched)
+
+if fixed_sed:
+    print("Fix 2 applied: replaced invalid 'sed -p' with 'sed -n'")
+else:
+    print("Fix 2 skipped: no 'sed -p' found")
+
+with open(path, 'w') as f:
+    f.writelines(out_lines)
+PYEOF
 
     touch "$sentinel"
     popd || scribe_error_exit "Unable to popd from termux-packages"
