@@ -21,6 +21,15 @@ index 825f2a886e..0e4ca238a1 100755
 +			repack_zip "$(realpath "$zip")"
 +		done < <(find . -type f -name \*.zip -print0)
 +
++		# ------------------------------------------------------------
++		# JDK-related manipulation:
++		# - repack ct.sym from the JDK
++		# - strip binary files
++		# - remove demo folders from installed JDKs
++		# These steps are kept here because they directly affect the
++		# final bootstrap size and the packaged JDK contents.
++		# ------------------------------------------------------------
++
 +		# Repack ct.sym in JDKs
 +		echo "[*] Repacking ct.sym"
 +		jdk="21"
