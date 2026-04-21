@@ -70,5 +70,34 @@ done
 "$termux_apt_repo" "$debs_dir" "$repo_dir" stable main ||\
     scribe_error_exit "Failed to create local API repository"
 
+# Generate Contents-{arch}.gz files required by packages such as
+# command-not-found that fetch file-to-package mappings at build time.
+# Format per line: <filepath>\t<section>/<package>
+for arch in "${ARCHS[@]}"; do
+    contents_tmp=$(mktemp)
+
+    while IFS= read -r deb; do
+        pkg=$(dpkg-deb -f "$deb" Package 2>/dev/null)      || continue
+        section=$(dpkg-deb -f "$deb" Section 2>/dev/null)  || section="utils"
+        [[ -z "$pkg" ]] && continue
+
+        dpkg-deb --contents "$deb" 2>/dev/null \
+            | awk -v entry="${section}/${pkg}" '
+                {
+                    path = $NF
+                    if (path == "./" || path ~ /\/$/) next
+                    sub(/^\.\//, "", path)
+                    print path "\t" entry
+                }
+            '
+    done < <(find "$output_dir/$arch" -maxdepth 1 -name "*.deb" 2>/dev/null) \
+        | sort >> "$contents_tmp"
+
+    dest="$repo_dir/dists/stable/Contents-${arch}"
+    mv "$contents_tmp" "$dest"
+    gzip -9 -f "$dest"
+    echo "Generated Contents-${arch}.gz"
+done
+
 # Clean
 rm -rf "$debs_dir"
