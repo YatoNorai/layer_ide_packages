@@ -110,7 +110,7 @@ COTG_PACKAGES+=(
     # Required by generate-bootstraps.sh when BOOTSTRAP_ANDROID10_COMPATIBLE=false.
     # Must be present in the repo but must NOT be listed in COTG_PACKAGES__BOOTSTRAP,
     # otherwise generate-bootstraps.sh will try to download it and fail if absent.
-    "command-not-found"
+   # "command-not-found"
 )
 
 # Re-deduplicate after the addition above
