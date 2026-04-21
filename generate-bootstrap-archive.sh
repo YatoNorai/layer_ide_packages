@@ -1,134 +1,97 @@
-#!/usr/bin/env bash
-
-set -euo pipefail
-
-script=$(realpath "$0")
-script_dir=$(dirname "$script")
-
-# shellcheck source=common.sh
-. "$script_dir/common.sh"
-
-COTG_RELEASE="false"
-COTG_LOCAL="false"
-
-usage() {
-    echo "Script to generate bootstrap archives for Code On the Go."
-    echo
-    echo "Usage: $0 [options]"
-    echo
-    echo "Options:"
-    echo "  -g        Generate bootstrap archive for release builds."
-    echo "            Defaults to ${COTG_RELEASE}."
-    echo "  -l        Use local packages repository. Defaults to ${COTG_LOCAL}."
-    echo "            This takes precendence over the repository provided using -r."
-    echo "  -r        The repository where the built packages will be published."
-    echo "            Defaults to '${COTG_REPO}'."
-    echo
-    echo "  -h        Show this help message and exit."
-}
-
-build_boostrap() {
-    variant="$1"
-    arch="$2"
-    repo="$3"
-
-    shift 3
-    packages=("$@")
-    packages=$(IFS=,; echo "${packages[*]}")
-
-    if [[ -z "$variant" ]]; then
-        scribe_error_exit "Target variant must not be empty"
-    fi
-
-    if [[ -z "$arch" ]]; then
-        scribe_error_exit "Target arch must not be empty"
-    fi
-
-    if [[ -z "$repo" ]]; then
-        scribe_error_exit "Target repo must not be empty"
-    fi
-
-    bootstrap_name="bootstrap-${arch}.zip"
-    bootstrap_out="${COTG_OUTPUT_DIR}/bootstrap-${variant}-${arch}.zip"
-
-    echo
-    echo "==="
-    echo "Building bootstrap: $(realpath --relative-to="$(pwd)" ${bootstrap_out})"
-    echo "==="
-    echo
-
-    out_dir="$script_dir/output/$arch"
-    pushd "$out_dir" ||\
-        scribe_error_exit "Unable to switch to output dir: ${out_dir}"
-
-    if ! {
-        set -x
-        time "$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh" \
-            --architectures "$arch" \
-            --repository "$repo" \
-            --add "${packages}" |&\
-            tee "$out_dir/generate-bootstrap-${variant}.log"
-    }; then
-        scribe_error_exit "Failed to generate boostrap for ${arch} ${variant}."
-    fi
-
-    # Rename the built files
-    mv "${bootstrap_name}" "${bootstrap_out}"
-    mv "${bootstrap_name}.9" "${bootstrap_out}.9"
-
-    popd ||\
-        scribe_error_exit "Unable to switch from output dir: ${out_dir}"
-}
-
-while getopts "glr:h" opt; do
-    case "$opt" in
-        g) COTG_RELEASE="true";;
-        l) COTG_LOCAL="true";;
-        r) COTG_REPO="$OPTARG";;
-        h)
-            usage
-            exit 0
-            ;;
-        *)
-            scribe_error "Invalid option" >&2
-            exit 1
-            ;;
-    esac
-done
-
-shift $((OPTIND - 1))
-
-if [[ "$COTG_LOCAL" == "true" ]]; then
-    COTG_REPO="file://${COTG_REPO_DIR}"
-fi
-
-if [[ -z "${COTG_REPO}" ]]; then
-    scribe_error_exit "A package repository URL must be specified."
-fi
-
-COTG_VARIANT="debug"
-
-# Start from the minimal bootstrap set only.
-# Variant-specific extras are intentionally excluded from the bootstrap
-# archive; they can be installed via `apt install` at runtime.
-declare -a COTG_EXTRA_PACKAGES
-COTG_EXTRA_PACKAGES=("${COTG_PACKAGES__BOOTSTRAP[@]}")
-
-if [[ "$COTG_RELEASE" == "true" ]]; then
-    COTG_VARIANT="release"
-fi
-
-echo "Using configuration:"
-echo "  Variant        : ${COTG_VARIANT}"
-echo "  Repository     : ${COTG_REPO}"
-echo "  Bootstrap pkgs : ${COTG_EXTRA_PACKAGES[*]}"
-
-# Set up termux-packages (package name substitution, GPG key, all patches).
-# This is required before generate-bootstraps.sh runs so that paths and
-# scripts use com.layer.ide instead of com.termux.
-setup_termux_packages
-
-for arch in aarch64 arm; do
-    build_boostrap "$COTG_VARIANT" "$arch" "$COTG_REPO" "${COTG_EXTRA_PACKAGES[@]}" ||\
-        scribe_error_exit "Unable to build bootstrap for ${arch}"
-done
+diff --git a/scripts/generate-bootstraps.sh b/scripts/generate-bootstraps.sh
+index 825f2a886e..0e4ca238a1 100755
+--- a/scripts/generate-bootstraps.sh
++++ b/scripts/generate-bootstraps.sh
+@@ -280,6 +280,7 @@ add_termux_bootstrap_second_stage_files() {
+ # Information about symlinks is stored in file SYMLINKS.txt.
+ create_bootstrap_archive() {
+ 	echo "[*] Creating 'bootstrap-${1}.zip'..."
++	bszip="${BOOTSTRAP_TMPDIR}/bootstrap-${1}.zip"
+ 	(cd "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}"
+ 		# Do not store symlinks in bootstrap archive.
+ 		# Instead, put all information to SYMLINKS.txt
+@@ -288,13 +289,72 @@ create_bootstrap_archive() {
+ 			rm -f "$link"
+ 		done < <(find . -type l -print0)
+ 
+-		zip -r9 "${BOOTSTRAP_TMPDIR}/bootstrap-${1}.zip" ./*
++		# Find and repack all ZIP files with no compression
++		echo "[*] Repacking ZIP files"
++		while read -r -d '' zip; do
++			repack_zip "$(realpath "$zip")"
++		done < <(find . -type f -name \*.zip -print0)
++
++		# Repack ct.sym in JDKs
++		echo "[*] Repacking ct.sym"
++		jdk="21"
++		dir="./lib/jvm/java-$jdk-openjdk"
++		ctsym="$dir/lib/ct.sym"
++		if ! [[ -f "$ctsym" ]]; then
++			# JDK not installed; skip ct.sym repacking gracefully
++			echo "[*] JDK $jdk - ct.sym not found, skipping."
++			return 0
++		fi
++
++		ctsym="$(realpath "$ctsym")"
++		local temp
++		temp=$(mktemp -d)
++		(cd "$temp"
++			unzip -qq "$ctsym"
++			rm "$ctsym"
++			zip -qr0 "ct.sym" ./*
++			brotli -Zo "$ctsym" ct.sym
++			ls -hal "$ctsym"
++			rm ct.sym
++		) && rm -rf "$temp" && echo "[*] JDK $jdk - ct.sym repacked"
++
++		# Strip all binary files
++		echo "[*] Stripping binaries"
++		find . -type f -exec hexdump -n 4 -e '4/1 "%2x" " {}\n"'  {} \; |\
++			grep ^7f454c46 |\
++			cut -d' ' -f2- |\
++			xargs -L1 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
++
++		# Remove demos from JDK
++		echo "[*] Removing demo files in JDKs"
++		rm -rf ./lib/jvm/java-*-openjdk/demo
++
++		# Create bootstrap ZIP file without compression
++		echo "[*] Creating bootstrap archives"
++		zip -qr0 "$bszip" ./*
++		zip -qr9 "$bszip.9" ./*
+ 	)
+ 
+-	mv -f "${BOOTSTRAP_TMPDIR}/bootstrap-${1}.zip" ./
++	mv -f $bszip* ./
+ 	echo "[*] Finished successfully (${1})."
+ }
+ 
++repack_zip() {
++	input="$1"
++
++	echo "Repacking $input"
++
++	local temp
++	temp=$(mktemp -d)
++
++	(cd "$temp"
++		unzip -qq "$input"
++		rm "$input"
++		zip -qr0 "$input" ./*
++	)
++}
++
+ show_usage() {
+ 	echo
+ 	echo "Usage: generate-bootstraps.sh [options]"
+@@ -452,9 +512,7 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do
+ 	# Core utilities.
+ 	pull_package bash # Used by `termux-bootstrap-second-stage.sh`
+ 	pull_package bzip2
+-	if ! ${BOOTSTRAP_ANDROID10_COMPATIBLE}; then
+-		pull_package command-not-found
+-	else
++	if ${BOOTSTRAP_ANDROID10_COMPATIBLE}; then
+ 		pull_package proot
+ 	fi
+ 	pull_package coreutils
