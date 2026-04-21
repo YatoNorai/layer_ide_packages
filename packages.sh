@@ -89,5 +89,5 @@ COTG_PACKAGES+=(
     "libllvm"
 
     # Required by generate-bootstraps.sh when BOOTSTRAP_ANDROID10_COMPATIBLE=false
-    "command-not-found"
+    # "command-not-found" -- removed: package disabled in this repo
 )
