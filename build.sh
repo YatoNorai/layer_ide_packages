@@ -93,9 +93,10 @@ declare -a PATCHES=(
     # use the stable version-specific path instead
     "nano-fix-srcurl.patch"
 
-    # command-not-found may not be built in every run;
-    # make it optional so bootstrap generation doesn't abort
-    "bootstrap-optional-command-not-found.patch"
+    # bash lists command-not-found as Recommends; some build system versions
+    # promote it to Depends in the control file, causing bootstrap to fail
+    # when the package is not in the repo. Remove the Recommends entirely.
+    "bash-remove-recommends.patch"
 
     # SourceForge downloads.sf.net returns 404 from GitHub Actions IPs;
     # switch to master.dl.sourceforge.net (SF's own CDN, no redirect)
