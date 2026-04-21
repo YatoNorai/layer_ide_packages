@@ -92,11 +92,6 @@ declare -a PATCHES=(
     # So we force termux-packages to build using CMake instead of Makefile
     "libuv-force-cmake-build.patch"
 
-    # Changes for our version of bootstrap-*.zip files
-    # This also handles the process of creating a brotli archive
-    # from the generated ZIP archive
-    "scripts-generate-bootstraps-CoGo-changes.patch"
-
     # Update package name in termux-tools
     "termux-tools-update-package-name.patch"
 
@@ -188,29 +183,6 @@ setup_termux_packages() {
     # Update the packages repository
     grep -rnI . -e "https://packages-cf.termux.dev/apt/termux-main" -l |\
         xargs -L1 sed -i "s|https://packages-cf.termux.dev/apt/termux-main|${COTG_REPO}|g"
-
-    # ---- command-not-found removal (belt-and-suspenders) ----
-    # The bash .deb in the remote repo may have command-not-found baked into
-    # its Recommends/Depends control field (built before bash-remove-recommends.patch
-    # was applied). If generate-bootstraps.sh tries to resolve that dependency and
-    # the package is absent from the repo, it aborts with:
-    #   [!] Failed to determine URL for package 'command-not-found'
-    # Two extra safeguards ensure the bootstrap never fails even if the CoGo
-    # patch hunk drifts due to submodule updates.
-
-    # 1. Remove any explicit pull_package call for command-not-found from the
-    #    bootstrap generator (covers cases where the CoGo patch hunk didn't land).
-    scribe_info "Removing pull_package command-not-found from generate-bootstraps.sh"
-    sed -i '/pull_package[[:space:]]*command-not-found/d' \
-        scripts/generate-bootstraps.sh 2>/dev/null || true
-
-    # 2. Strip command-not-found from bash TERMUX_PKG_RECOMMENDS / TERMUX_PKG_DEPENDS
-    #    in source so a freshly-built bash deb won't carry the dependency either.
-    scribe_info "Removing command-not-found from bash build.sh"
-    sed -i \
-        -e 's/command-not-found[,[:space:]]*//' \
-        -e 's/,[[:space:]]*command-not-found//' \
-        packages/bash/build.sh 2>/dev/null || true
 
     # Marked patched
     touch .scribe-patched
