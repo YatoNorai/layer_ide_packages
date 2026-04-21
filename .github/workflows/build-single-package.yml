@@ -135,15 +135,27 @@ jobs:
           REMOTE="${{ secrets.SSH_USER }}@$SSH_HOST"
           RPATH="${{ secrets.SSH_REMOTE_PATH }}"
 
-          # Download current repo from server
+          # Download current repo from server (includes pool/*.deb)
           mkdir -p output/repo
           rsync -avz \
             -e "$SSH" \
             "$REMOTE:$RPATH/" \
             output/repo/
 
-          # Extract new debs into output/{arch}/
+          # Restore existing .deb files from the downloaded pool back into
+          # output/{arch}/ so generate-apt-repo.sh includes them alongside
+          # the new package — without this, every run wipes the server.
           mkdir -p output/aarch64 output/arm
+          while IFS= read -r deb; do
+            fname=$(basename "$deb")
+            if [[ "$fname" == *_aarch64.deb ]]; then
+              cp "$deb" output/aarch64/
+            elif [[ "$fname" == *_arm.deb ]]; then
+              cp "$deb" output/arm/
+            fi
+          done < <(find output/repo/pool -name '*.deb' 2>/dev/null)
+
+          # Extract new debs on top (overwrites old version of the same package)
           for f in pkg-${{ inputs.package }}-*.tar.gz; do
             arch=$(echo "$f" | sed 's/pkg-.*-\(.*\)\.tar\.gz/\1/')
             tar -xzf "$f" -C "output/$arch/"
