@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 script=$(realpath "$0")
@@ -78,7 +77,7 @@ build_boostrap() {
 
     echo
     echo "==="
-    echo "Building bootstrap: $(realpath --relative-to="$(pwd)" ${bootstrap_out})"
+    echo "Building bootstrap: $(realpath --relative-to="$(pwd)" "${bootstrap_out}")"
     echo "==="
     echo
 
@@ -100,6 +99,7 @@ build_boostrap() {
 
     # Normalize the generated archive so we always ship
     # the minimal uncompressed ZIP plus the max-compressed variant.
+    # Agora inclui a configuração do servidor APT (sources.list).
     normalize_bootstrap_archive "${bootstrap_name}" "$repo"
 
     # Rename the built files
