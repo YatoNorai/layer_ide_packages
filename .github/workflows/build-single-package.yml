@@ -69,9 +69,19 @@ jobs:
 
       - name: Archive new debs
         run: |
+          mapfile -t debs < <(find "output/${{ matrix.arch }}" -maxdepth 1 -name '*.deb' -printf '%f\n')
+
+          if [[ ${#debs[@]} -eq 0 ]]; then
+            echo "::error::No .deb files found in output/${{ matrix.arch }}/ – did the build succeed?"
+            exit 1
+          fi
+
+          echo "Packaging ${#debs[@]} .deb file(s): ${debs[*]}"
+
           tar -czf "pkg-${{ inputs.package }}-${{ matrix.arch }}.tar.gz" \
             -C "output/${{ matrix.arch }}" \
-            --wildcards '*.deb'
+            "${debs[@]}"
+
           echo "Built debs:"
           tar -tzf "pkg-${{ inputs.package }}-${{ matrix.arch }}.tar.gz"
 
