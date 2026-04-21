@@ -1,10 +1,10 @@
 diff --git a/packages/termux-tools/build.sh b/packages/termux-tools/build.sh
 --- a/packages/termux-tools/build.sh
 +++ b/packages/termux-tools/build.sh
-@@ -26,3 +26,10 @@ termux_step_pre_configure() {
+@@ -26,2 +26,9 @@ termux_step_pre_configure() {
  	autoreconf -vfi
  }
- 
++
 +termux_step_post_make_install() {
 +	# Layer IDE does not ship mirrors; strip the mirror-check warning block
 +	# and the associated find commands from the installed pkg script.
