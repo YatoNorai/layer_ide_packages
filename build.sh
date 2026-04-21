@@ -93,6 +93,10 @@ declare -a PATCHES=(
     # use the stable version-specific path instead
     "nano-fix-srcurl.patch"
 
+    # command-not-found may not be built in every run;
+    # make it optional so bootstrap generation doesn't abort
+    "bootstrap-optional-command-not-found.patch"
+
     # SourceForge downloads.sf.net returns 404 from GitHub Actions IPs;
     # switch to master.dl.sourceforge.net (SF's own CDN, no redirect)
     "giflib-fix-srcurl.patch"
