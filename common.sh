@@ -97,7 +97,7 @@ declare -a PATCHES=(
 
     # Remove mirror-check from the pkg script since Layer IDE does not ship mirrors.
     # Without this fix, every `pkg install` prints warnings and runs failing `find` commands.
-    "termux-tools-pkg-fix-mirror-check.patch"
+    # "termux-tools-pkg-fix-mirror-check.patch"
 
     # Cleanup OpenJDK 21 to remove postinst & prerm scripts
     "openjdk-21-cleanup.patch"
