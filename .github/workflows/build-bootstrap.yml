@@ -1,0 +1,106 @@
+name: Build Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'Bootstrap variant to build'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - debug
+          - release
+
+env:
+  REPO_URL: https://packagesyatonorai.duckdns.org/apt/termux-main
+  BUILDER_IMAGE: ghcr.io/termux/package-builder:latest
+
+jobs:
+  build-bootstrap:
+    name: Generate Bootstrap (${{ inputs.variant }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create GitHub Release
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Pull builder image
+        run: docker pull "$BUILDER_IMAGE"
+
+      - name: Create output directories
+        run: mkdir -p output/aarch64 output/arm
+
+      - name: Generate debug bootstrap
+        if: inputs.variant == 'debug' || inputs.variant == 'both'
+        run: |
+          docker run --rm \
+            --privileged \
+            -e HOME=/home/builder \
+            -e REPO_URL="$REPO_URL" \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            "$BUILDER_IMAGE" \
+            bash -c "
+              find /workspace -maxdepth 1 -name '*.sh' -exec sed -i 's/\r//' {} +
+              find /workspace/patches -name '*.patch*' -exec sed -i 's/\r//' {} + 2>/dev/null || true
+              export HOME=/home/builder
+              ./generate-bootstrap-archive.sh -r \"\$REPO_URL\"
+            "
+
+      - name: Generate release bootstrap
+        if: inputs.variant == 'release' || inputs.variant == 'both'
+        run: |
+          docker run --rm \
+            --privileged \
+            -e HOME=/home/builder \
+            -e REPO_URL="$REPO_URL" \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            "$BUILDER_IMAGE" \
+            bash -c "
+              find /workspace -maxdepth 1 -name '*.sh' -exec sed -i 's/\r//' {} +
+              find /workspace/patches -name '*.patch*' -exec sed -i 's/\r//' {} + 2>/dev/null || true
+              export HOME=/home/builder
+              ./generate-bootstrap-archive.sh -g -r \"\$REPO_URL\"
+            "
+
+      - name: List generated bootstrap files
+        run: |
+          echo "--- Generated bootstrap files ---"
+          ls -lh output/bootstrap-*.zip* 2>/dev/null || echo "No bootstrap files found"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bootstrap-${{ github.run_number }}
+          name: "Layer Bootstrap #${{ github.run_number }} (${{ inputs.variant }})"
+          body: |
+            ## Layer Bootstrap \#${{ github.run_number }}
+
+            Bootstrap archives for **Layer IDE** (`com.layer.ide`).
+            Variant: **${{ inputs.variant }}**
+
+            | File | Description |
+            |------|-------------|
+            | `bootstrap-debug-aarch64.zip` | Debug – ARM 64-bit |
+            | `bootstrap-debug-aarch64.zip.9` | Debug – ARM 64-bit (brotli) |
+            | `bootstrap-debug-arm.zip` | Debug – ARM 32-bit |
+            | `bootstrap-debug-arm.zip.9` | Debug – ARM 32-bit (brotli) |
+            | `bootstrap-release-aarch64.zip` | Release – ARM 64-bit |
+            | `bootstrap-release-aarch64.zip.9` | Release – ARM 64-bit (brotli) |
+            | `bootstrap-release-arm.zip` | Release – ARM 32-bit |
+            | `bootstrap-release-arm.zip.9` | Release – ARM 32-bit (brotli) |
+
+            **APT Repository:** `https://packagesyatonorai.duckdns.org/apt/termux-main`
+            **Package name:** `com.layer.ide`
+          draft: false
+          prerelease: false
+          files: output/bootstrap-*.zip*
+          generate_release_notes: false
