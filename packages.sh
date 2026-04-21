@@ -43,6 +43,8 @@ COTG_PACKAGES__BASE=(
     "brotli"      # required for bootstrap brotli repacking
     "debianutils" # required by apt
     "git"         # version control
+    "openjdk-21"
+    "wget"
     "patch"       # required for applying patches
     "unzip"       # required for archive handling
     "zip"         # required for archive handling
