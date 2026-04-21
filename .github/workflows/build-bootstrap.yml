@@ -71,6 +71,14 @@ jobs:
               ./generate-bootstrap-archive.sh -g -r \"\$REPO_URL\"
             "
 
+      - name: Collect generated bootstrap files
+        run: |
+          echo "--- Generated bootstrap files before collection ---"
+          find output -type f -name 'bootstrap-*.zip*' -print -exec ls -lh {} \\; || true
+          mkdir -p output
+          find output -mindepth 2 -type f -name 'bootstrap-*.zip*' \
+            -exec cp -f {} output/ \\;
+
       - name: List generated bootstrap files
         run: |
           echo "--- Generated bootstrap files ---"
