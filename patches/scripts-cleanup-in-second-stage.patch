@@ -22,11 +22,6 @@ index 723993d6dc..2889c7e919 100755
 +		return $return_value
 +	fi
 +
-+	log "Creating missing apt and log directories"
-+	mkdir -p "${TERMUX_PREFIX}/etc/apt/apt.conf.d"
-+	mkdir -p "${TERMUX_PREFIX}/etc/apt/preferences.d"
-+	mkdir -p "${TERMUX_PREFIX}/var/log/apt"
-+
  	return 0
 +}
 +
