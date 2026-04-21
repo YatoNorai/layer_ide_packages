@@ -47,12 +47,15 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             "$BUILDER_IMAGE" \
-            bash -c "
-              find /workspace -maxdepth 1 -name '*.sh' -exec sed -i 's/\r//' {} +
-              find /workspace/patches -name '*.patch*' -exec sed -i 's/\r//' {} + 2>/dev/null || true
+            bash -lc '
+              set -e
+              find /workspace -maxdepth 1 -name "*.sh" -exec sed -i "s/\r//" {} +
+              if [ -d /workspace/patches ]; then
+                find /workspace/patches -name "*.patch*" -exec sed -i "s/\r//" {} +
+              fi
               export HOME=/home/builder
-              ./generate-bootstrap-archive.sh -r \"\$REPO_URL\"
-            "
+              ./generate-bootstrap-archive.sh -r "$REPO_URL"
+            '
 
       - name: Generate release bootstrap
         if: inputs.variant == 'release' || inputs.variant == 'both'
@@ -64,20 +67,26 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             "$BUILDER_IMAGE" \
-            bash -c "
-              find /workspace -maxdepth 1 -name '*.sh' -exec sed -i 's/\r//' {} +
-              find /workspace/patches -name '*.patch*' -exec sed -i 's/\r//' {} + 2>/dev/null || true
+            bash -lc '
+              set -e
+              find /workspace -maxdepth 1 -name "*.sh" -exec sed -i "s/\r//" {} +
+              if [ -d /workspace/patches ]; then
+                find /workspace/patches -name "*.patch*" -exec sed -i "s/\r//" {} +
+              fi
               export HOME=/home/builder
-              ./generate-bootstrap-archive.sh -g -r \"\$REPO_URL\"
-            "
+              ./generate-bootstrap-archive.sh -g -r "$REPO_URL"
+            '
 
       - name: Collect generated bootstrap files
         run: |
           echo "--- Generated bootstrap files before collection ---"
-          find output -type f -name 'bootstrap-*.zip*' -print -exec ls -lh {} \\; || true
+          if [ -d output ]; then
+            find output -type f -name 'bootstrap-*.zip*' -print -exec ls -lh {} \;
+          else
+            echo "No output directory found yet"
+          fi
           mkdir -p output
-          find output -mindepth 2 -type f -name 'bootstrap-*.zip*' \
-            -exec cp -f {} output/ \\;
+          find output -mindepth 2 -type f -name 'bootstrap-*.zip*' -exec cp -f {} output/ \;
 
       - name: List generated bootstrap files
         run: |
