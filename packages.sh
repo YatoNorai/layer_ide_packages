@@ -31,6 +31,7 @@ COTG_PACKAGES__BOOTSTRAP=(
     "grep"
     "gzip"
     "less"
+    "git"
     "libbz2"
     "procps"
     "psmisc"
@@ -41,9 +42,6 @@ COTG_PACKAGES__BOOTSTRAP=(
     "termux-keyring"
     "termux-tools"
     "util-linux"
-
-    # Required by generate-bootstraps.sh when BOOTSTRAP_ANDROID10_COMPATIBLE=false
-    "command-not-found"
 )
 
 # ---- Variant-specific extras (installed via apt, not baked into bootstrap) ----
@@ -106,5 +104,14 @@ COTG_PACKAGES=(
     "${COTG_PACKAGES__RELEASE[@]}"
 )
 
-# De-duplicate (bash does not do this automatically)
+# Packages that must exist in the repo for generate-bootstraps.sh to work
+# but are NOT passed via --add (i.e. not baked into the bootstrap archive).
+COTG_PACKAGES+=(
+    # Required by generate-bootstraps.sh when BOOTSTRAP_ANDROID10_COMPATIBLE=false.
+    # Must be present in the repo but must NOT be listed in COTG_PACKAGES__BOOTSTRAP,
+    # otherwise generate-bootstraps.sh will try to download it and fail if absent.
+    "command-not-found"
+)
+
+# Re-deduplicate after the addition above
 readarray -t COTG_PACKAGES < <(printf '%s\n' "${COTG_PACKAGES[@]}" | sort -u)
