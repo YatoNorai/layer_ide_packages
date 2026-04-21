@@ -123,18 +123,10 @@ echo "  Variant        : ${COTG_VARIANT}"
 echo "  Repository     : ${COTG_REPO}"
 echo "  Extra packages : ${COTG_EXTRA_PACKAGES[@]}"
 
-
-# Apply termux-packages patches if not already done.
-# This is required so that generate-bootstraps.sh does not
-# attempt to pull command-not-found, which is no longer included.
-if ! [[ -f "$TERMUX_PACKAGES_DIR/.scribe-patched" ]]; then
-    scribe_info "Applying termux-packages patches..."
-    patch -p1 -d "$TERMUX_PACKAGES_DIR" --no-backup-if-mismatch \
-        < "$script_dir/patches/scripts-generate-bootstraps-CoGo-changes.patch" ||
-        scribe_error_exit "Failed to apply scripts-generate-bootstraps-CoGo-changes.patch"
-    touch "$TERMUX_PACKAGES_DIR/.scribe-patched"
-    scribe_ok "Patches applied."
-fi
+# Set up termux-packages (package name substitution, GPG key, all patches).
+# This is required before generate-bootstraps.sh runs so that paths and
+# scripts use com.layer.ide instead of com.termux.
+setup_termux_packages
 
 for arch in aarch64 arm; do
     build_boostrap "$COTG_VARIANT" "$arch" "$COTG_REPO" "${COTG_EXTRA_PACKAGES[@]}" ||\
