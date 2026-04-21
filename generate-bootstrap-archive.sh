@@ -67,6 +67,20 @@ setup_bootstrap_patches() {
         fi
     done
 
+    # add_termux_bootstrap_second_stage_files() writes a fallback script into
+    # etc/profile.d/ but never creates the directory first, causing a "No such
+    # file or directory" error when the directory is absent from the rootfs.
+    # Insert a mkdir -p immediately before the offending redirect.
+    local gen_bs="$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh"
+    if grep -q "01-termux-bootstrap-second-stage-fallback.sh" "$gen_bs" && \
+       ! grep -q 'mkdir.*profile\.d' "$gen_bs"; then
+        scribe_info "Patching generate-bootstraps.sh: adding mkdir -p for etc/profile.d"
+        sed -i \
+            '/01-termux-bootstrap-second-stage-fallback\.sh/i\\tmkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/etc/profile.d"' \
+            "$gen_bs"
+        scribe_ok "Patched etc/profile.d mkdir"
+    fi
+
     touch "$sentinel"
     popd || scribe_error_exit "Unable to popd from termux-packages"
 }
