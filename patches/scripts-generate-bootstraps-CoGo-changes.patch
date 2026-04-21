@@ -27,9 +27,10 @@ index 825f2a886e..0e4ca238a1 100755
 +		dir="./lib/jvm/java-$jdk-openjdk"
 +		ctsym="$dir/lib/ct.sym"
 +		if ! [[ -f "$ctsym" ]]; then
-+			# JDK not installed; skip ct.sym repacking gracefully
-+			echo "[*] JDK $jdk - ct.sym not found, skipping."
-+			return 0
++			# Doesn't exist; continue
++			echo "[!] JDK $jdk - ct.sym doesn't exist!"
++			echo "[!] ${ctsym}"
++			return 1
 +		fi
 +
 +		ctsym="$(realpath "$ctsym")"
@@ -84,7 +85,8 @@ index 825f2a886e..0e4ca238a1 100755
  show_usage() {
  	echo
  	echo "Usage: generate-bootstraps.sh [options]"
-@@ -452,9 +512,7 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do 	# Core utilities.
+@@ -452,9 +512,7 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do
+ 	# Core utilities.
  	pull_package bash # Used by `termux-bootstrap-second-stage.sh`
  	pull_package bzip2
 -	if ! ${BOOTSTRAP_ANDROID10_COMPATIBLE}; then
