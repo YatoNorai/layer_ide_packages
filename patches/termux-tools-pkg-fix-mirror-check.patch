@@ -1,0 +1,16 @@
+diff --git a/packages/termux-tools/build.sh b/packages/termux-tools/build.sh
+--- a/packages/termux-tools/build.sh
++++ b/packages/termux-tools/build.sh
+@@ -24,4 +24,11 @@ TERMUX_PKG_RECOMMENDS="ed, dos2unix, inetutils, net-tools, patch, unzip"
+ termux_step_pre_configure() {
+ 	sed -i 's/com.termux/@TERMUX_PACKAGE_NAME@/g' configure.ac
+ 	autoreconf -vfi
+ }
++
++termux_step_post_make_install() {
++	# Layer IDE does not ship mirrors; strip the mirror-check warning block
++	# and the associated find commands from the installed pkg script.
++	local pkg_bin="${TERMUX_PREFIX}/bin/pkg"
++	sed -i '/No mirror or mirror group selected/,/^[[:space:]]*fi$/d' "${pkg_bin}"
++	sed -i '/find.*\/etc\/termux\/mirrors/d' "${pkg_bin}"
++}
