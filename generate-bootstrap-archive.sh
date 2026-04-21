@@ -27,6 +27,50 @@ usage() {
     echo "  -h        Show this help message and exit."
 }
 
+# Patches that must be applied to termux-packages before generating bootstraps.
+# These are a subset of the patches in build.sh that affect the bootstrap
+# generation process itself (not package builds).
+declare -a BOOTSTRAP_PATCHES=(
+    # Removes command-not-found from the list of packages pulled into the
+    # bootstrap by generate-bootstraps.sh (also adds brotli archive creation).
+    "scripts-generate-bootstraps-CoGo-changes.patch"
+
+    # bash lists command-not-found as Recommends; some build system versions
+    # promote it to Depends in the control file, causing bootstrap to fail
+    # when the package is not in the repo. Remove the Recommends entirely.
+    "bash-remove-recommends.patch"
+)
+
+# Apply bootstrap-specific patches to termux-packages if not already done.
+# Uses a sentinel file to avoid re-applying on subsequent runs.
+setup_bootstrap_patches() {
+    local sentinel="$TERMUX_PACKAGES_DIR/.scribe-bootstrap-patched"
+    if [[ -f "$sentinel" ]]; then
+        scribe_info "Bootstrap patches already applied, skipping."
+        return 0
+    fi
+
+    scribe_info "Applying bootstrap patches to termux-packages..."
+    pushd "$TERMUX_PACKAGES_DIR" || \
+        scribe_error_exit "Unable to pushd into termux-packages"
+
+    for patch in "${BOOTSTRAP_PATCHES[@]}"; do
+        local patch_file="$script_dir/patches/$patch"
+        if [[ ! -f "$patch_file" ]]; then
+            scribe_error_exit "Patch file not found: $patch_file"
+        fi
+        scribe_info "Applying patch: ${patch}"
+        if patch -p1 --no-backup-if-mismatch < "$patch_file"; then
+            scribe_ok "Applied '${patch}'"
+        else
+            scribe_error_exit "Failed to apply '${patch}'"
+        fi
+    done
+
+    touch "$sentinel"
+    popd || scribe_error_exit "Unable to popd from termux-packages"
+}
+
 build_boostrap() {
     variant="$1"
     arch="$2"
@@ -105,6 +149,11 @@ fi
 if [[ -z "${COTG_REPO}" ]]; then
     scribe_error_exit "A package repository URL must be specified."
 fi
+
+# Apply patches needed by the bootstrap generation before running
+# generate-bootstraps.sh. This is required when the bootstrap workflow
+# runs independently of build.sh (which normally applies these patches).
+setup_bootstrap_patches
 
 COTG_VARIANT="debug"
 
