@@ -31,16 +31,29 @@ normalize_bootstrap_archive() {
     local generated_zip="$1"
     local temp_dir
     local extracted_dir
+    local normalized_zip
+    local normalized_zip9
+    local base_name
 
     temp_dir=$(mktemp -d)
     extracted_dir="${temp_dir}/extracted"
     mkdir -p "$extracted_dir"
 
+    base_name=$(basename "$generated_zip")
+    normalized_zip="${temp_dir}/${base_name}"
+    normalized_zip9="${temp_dir}/${base_name}.9"
+
     unzip -qq "$generated_zip" -d "$extracted_dir"
     rm -f "$generated_zip" "${generated_zip}.9"
 
-    (cd "$extracted_dir" && zip -qr0 "$generated_zip" ./*)
-    (cd "$extracted_dir" && zip -qr9 "${generated_zip}.9" ./*)
+    (
+        cd "$extracted_dir"
+        zip -qr0 "$normalized_zip" ./*
+        zip -qr9 "$normalized_zip9" ./*
+    )
+
+    mv "$normalized_zip" "$generated_zip"
+    mv "$normalized_zip9" "${generated_zip}.9"
 
     rm -rf "$temp_dir"
 }
@@ -71,7 +84,7 @@ build_boostrap() {
 
     echo
     echo "==="
-    echo "Building bootstrap: $(realpath --relative-to="$(pwd)" ${bootstrap_out})"
+    echo "Building bootstrap: $(realpath --relative-to="$(pwd)" "${bootstrap_out}")"
     echo "==="
     echo
 
