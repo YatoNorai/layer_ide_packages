@@ -143,10 +143,9 @@ patch_bootstrap_generator() {
         scribe_error_exit "Bootstrap generator not found: ${bootstrap_script}"
     fi
 
-    # Remove bootstrap-only packages that are not available in our repo and
-    # are not required for the minimal bootstrap. We do this by filtering the
-    # package-pull lines directly so the patch keeps working even if upstream
-    # spacing or nearby comments change.
+    # Replace the command-not-found/proot branch with a no-op.
+    # This preserves shell syntax while removing the extra package pulls
+    # that are not needed for the minimal bootstrap.
     python - "$bootstrap_script" <<'PY2'
 from pathlib import Path
 import re
@@ -154,11 +153,20 @@ import sys
 
 path = Path(sys.argv[1])
 text = path.read_text()
-text = re.sub(r'^\s*pull_package\s+command-not-found\s*\n', '', text, flags=re.M)
-text = re.sub(r'^\s*pull_package\s+proot\s*\n', '', text, flags=re.M)
+pattern = re.compile(r"if ! \${BOOTSTRAP_ANDROID10_COMPATIBLE}; then.*?fi\s*\n", re.S)
+replacement = """if ! ${BOOTSTRAP_ANDROID10_COMPATIBLE}; then
+
+    : # minimal bootstrap: no command-not-found or proot
+
+fi
+"""
+text, count = pattern.subn(replacement, text, count=1)
+if count != 1:
+    raise SystemExit('expected bootstrap package-manager block not found')
 path.write_text(text)
 PY2
 }
+
 
 
 # Sets up the termux-packages submodule: substitutes package name,
