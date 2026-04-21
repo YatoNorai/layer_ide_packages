@@ -15,9 +15,9 @@ declare -a COTG_PACKAGES
 
 COTG_PACKAGES__BASE=(
 
-    ## ---- Bootstrap packages ---- ##
+    ## ---- Minimal bootstrap packages ---- ##
 
-    # Core utilities.
+    # Core utilities required for a working bootstrap.
     "apt"
     "bash"
     "coreutils"
@@ -38,30 +38,11 @@ COTG_PACKAGES__BASE=(
     "termux-keyring"
     "termux-tools"
     "util-linux"
-
-    # Additional (only strictly necessary packages + git).
-    "brotli"      # required for bootstrap brotli repacking
-    "debianutils" # required by apt
-    "git"         # version control
-    #"openjdk-21"
-    "wget"
-    "patch"       # required for applying patches
-    "unzip"       # required for archive handling
-    "zip"         # required for archive handling
 )
+
 
 # debug-only packages
-COTG_PACKAGES__DEBUG=(
-    "binutils-libs"
-    "coreutils"
-    "file"
-    "libsqlite"
-    "python"
-    "python-pip"
-    "vim"
-    "wget"
-    "which"
-)
+COTG_PACKAGES__DEBUG=()
 
 # release-only packages
 COTG_PACKAGES__RELEASE=()
@@ -91,5 +72,5 @@ COTG_PACKAGES+=(
     "libllvm"
 
     # Required by generate-bootstraps.sh when BOOTSTRAP_ANDROID10_COMPATIBLE=false
-    # "command-not-found" -- removed: package disabled in this repo
+    "command-not-found"
 )
