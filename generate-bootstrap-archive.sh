@@ -108,20 +108,20 @@ fi
 
 COTG_VARIANT="debug"
 
+# Start from the minimal bootstrap set only.
+# Variant-specific extras are intentionally excluded from the bootstrap
+# archive; they can be installed via `apt install` at runtime.
 declare -a COTG_EXTRA_PACKAGES
-COTG_EXTRA_PACKAGES=("${COTG_PACKAGES__BASE[@]}")
+COTG_EXTRA_PACKAGES=("${COTG_PACKAGES__BOOTSTRAP[@]}")
 
 if [[ "$COTG_RELEASE" == "true" ]]; then
     COTG_VARIANT="release"
-    COTG_EXTRA_PACKAGES+=("${COTG_PACKAGES__RELEASE[@]}")
-else
-    COTG_EXTRA_PACKAGES+=("${COTG_PACKAGES__DEBUG[@]}")
 fi
 
 echo "Using configuration:"
 echo "  Variant        : ${COTG_VARIANT}"
 echo "  Repository     : ${COTG_REPO}"
-echo "  Extra packages : ${COTG_EXTRA_PACKAGES[@]}"
+echo "  Bootstrap pkgs : ${COTG_EXTRA_PACKAGES[*]}"
 
 # Set up termux-packages (package name substitution, GPG key, all patches).
 # This is required before generate-bootstraps.sh runs so that paths and
