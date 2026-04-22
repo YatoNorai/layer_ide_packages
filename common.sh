@@ -64,7 +64,7 @@ declare -a PATCHES=(
     # Fix pkg.in before compilation via build.sh termux_step_pre_configure.
     # Removes mirror-warning, failing find commands, and replaces the else
     # branch with an early return so sources.list from bootstrap is preserved.
-    "termux-tools-pkg-fix-mirror.patch"
+    #"termux-tools-pkg-fix-mirror.patch"
 
     # Update mirror configurations (removes mirrors/ subdir from build)
     "termux-tools-mirrors.patch"
