@@ -97,7 +97,7 @@ declare -a PATCHES=(
 
     # Remove mirror-check from the pkg script since Layer IDE does not ship mirrors.
     # Without this fix, every `pkg install` prints warnings and runs failing `find` commands.
-    # "termux-tools-pkg-fix-mirror-check.patch"
+    "termux-tools-pkg-fix-mirror-check.patch"
 
     # Cleanup OpenJDK 21 to remove postinst & prerm scripts
     "openjdk-21-cleanup.patch"
@@ -209,6 +209,12 @@ setup_termux_packages() {
     # Create termux-tools-update-package-name.patch
     termux_tools_update_package_name_patch="$script_dir/patches/termux-tools-update-package-name.patch"
     sed "s|@TERMUX_PACKAGE_NAME@|$COTG_PACKAGE_NAME|g" "${termux_tools_update_package_name_patch}.in" > "${termux_tools_update_package_name_patch}"
+
+    # Create termux-tools-pkg-fix-mirror-check.patch
+    # Substitutes @COTG_REPO@ with the actual repository URL so the installed
+    # mirrors/default file points to the Layer IDE repository, not the Termux CDN.
+    termux_tools_mirror_fix_patch="$script_dir/patches/termux-tools-pkg-fix-mirror-check.patch"
+    sed "s|@COTG_REPO@|$COTG_REPO|g" "${termux_tools_mirror_fix_patch}.in" > "${termux_tools_mirror_fix_patch}"
 
     # Apply patches
     for patch in "${PATCHES[@]}"; do
