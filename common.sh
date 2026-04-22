@@ -61,7 +61,12 @@ declare -a PATCHES=(
     # Adds our own GPG keys
     "termux-keyring.patch"
 
-    # Update mirror configurations
+    # Fix pkg.in before compilation via build.sh termux_step_pre_configure.
+    # Removes mirror-warning, failing find commands, and replaces the else
+    # branch with an early return so sources.list from bootstrap is preserved.
+    "termux-tools-pkg-fix-mirror.patch"
+
+    # Update mirror configurations (removes mirrors/ subdir from build)
     "termux-tools-mirrors.patch"
 
     # Update motd
@@ -95,9 +100,7 @@ declare -a PATCHES=(
     # Update package name in termux-tools
     "termux-tools-update-package-name.patch"
 
-    # Remove mirror-check from the pkg script since Layer IDE does not ship mirrors.
-    # Without this fix, every `pkg install` prints warnings and runs failing `find` commands.
-    "termux-tools-pkg-fix-mirror-check.patch"
+
 
     # Cleanup OpenJDK 21 to remove postinst & prerm scripts
     "openjdk-21-cleanup.patch"
