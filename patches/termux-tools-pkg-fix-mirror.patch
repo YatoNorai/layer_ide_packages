@@ -1,25 +1,18 @@
 diff --git a/packages/termux-tools/build.sh b/packages/termux-tools/build.sh
 --- a/packages/termux-tools/build.sh
 +++ b/packages/termux-tools/build.sh
-@@ -21,6 +21,22 @@ TERMUX_PKG_DEPENDS="bzip2, coreutils, curl, dash, diffutils, findutils, gawk, gr
- TERMUX_PKG_RECOMMENDS="ed, dos2unix, inetutils, net-tools, patch, unzip"
- 
- termux_step_pre_configure() {
-+	# Patch scripts/pkg.in before compilation.
-+	# Layer IDE ships no regional mirror dirs (asia/, europe/, etc.), so the
-+	# fallback find commands fail at runtime producing errors on every pkg call.
-+	# We fix the source directly here so the compiled pkg binary is clean.
-+	#
-+	# 1. Remove the "No mirror or mirror group selected" warning echo.
+@@ -26,2 +26,14 @@ termux_step_pre_configure() {
++	# Fix scripts/pkg.in before compilation: remove mirror warning and failing
++	# find commands for regional dirs that do not exist in this build.
 +	sed -i '/No mirror or mirror group selected/d' scripts/pkg.in
-+	#
-+	# 2. Remove both mirrors+=(find .../{asia,...}/) lines (elif and else branches).
 +	sed -i '/mirrors+=.*find.*{asia,chinese_mainland,europe,north_america,oceania,russia}/d' scripts/pkg.in
-+	#
-+	# 3. Replace the else branch body with an early return.
-+	#    sources.list is already set correctly at bootstrap time; no re-selection needed.
-+	sed -i '/^\telse$/{n;s|.*mirrors=.*MIRROR_BASE_DIR.*default.*|\t\t# No chosen_mirrors - sources.list set at bootstrap time, keep as-is.\n\t\treturn|}' scripts/pkg.in
-+	#
- 	sed -i 's/com.termux/@TERMUX_PACKAGE_NAME@/g' configure.ac
  	autoreconf -vfi
  }
++
++termux_step_post_make_install() {
++	# Install a minimal mirrors/default so pkg can resolve the repository URL.
++	# The URL below is replaced with COTG_REPO by layer_ide_packages/common.sh.
++	mkdir -p "${TERMUX_PREFIX}/etc/termux/mirrors"
++	echo 'WEIGHT=10' > "${TERMUX_PREFIX}/etc/termux/mirrors/default"
++	echo 'MAIN="https://packages-cf.termux.dev/apt/termux-main"' >> "${TERMUX_PREFIX}/etc/termux/mirrors/default"
++}
