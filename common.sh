@@ -213,8 +213,8 @@ setup_termux_packages() {
     # Create termux-tools-pkg-fix-mirror-check.patch
     # Substitutes @COTG_REPO@ with the actual repository URL so the installed
     # mirrors/default file points to the Layer IDE repository, not the Termux CDN.
-    #termux_tools_mirror_fix_patch="$script_dir/patches/termux-tools-pkg-fix-mirror-check.patch"
-    #sed "s|@COTG_REPO@|$COTG_REPO|g" "${termux_tools_mirror_fix_patch}.in" > "${termux_tools_mirror_fix_patch}"
+    termux_tools_mirror_fix_patch="$script_dir/patches/termux-tools-pkg-fix-mirror-check.patch"
+    sed "s|@COTG_REPO@|$COTG_REPO|g" "${termux_tools_mirror_fix_patch}.in" > "${termux_tools_mirror_fix_patch}"
 
     # Apply patches
     for patch in "${PATCHES[@]}"; do
