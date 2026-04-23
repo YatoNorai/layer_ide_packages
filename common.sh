@@ -64,6 +64,10 @@ declare -a PATCHES=(
     # Update mirror configurations
     "termux-tools-mirrors.patch"
 
+    # Fix pkg to not warn about missing regional mirrors and install a
+    # mirrors/default file pointing to our server so 'pkg install' works
+    "termux-tools-pkg-fix-mirror.patch"
+
     # Update motd
     "termux-tools-motd.patch"
 
