@@ -2,10 +2,18 @@ diff --git a/scripts/bootstrap/termux-bootstrap-second-stage.sh b/scripts/bootst
 index 723993d6dc..2889c7e919 100755
 --- a/scripts/bootstrap/termux-bootstrap-second-stage.sh
 +++ b/scripts/bootstrap/termux-bootstrap-second-stage.sh
-@@ -149,8 +149,109 @@ run_bootstrap_second_stage_inner() {
+@@ -149,8 +149,107 @@ run_bootstrap_second_stage_inner() {
  		return $return_value
  	fi
-
+ 
++	log "Configuring APT mirror"
++	configure_apt_mirror
++	return_value=$?
++	if [ $return_value -ne 0 ]; then
++		log_error "Failed to configure APT mirror"
++		return $return_value
++	fi
++
 +	log "Restoring ct.sym"
 +	restore_ctsyms
 +	return_value=$?
@@ -19,14 +27,6 @@ index 723993d6dc..2889c7e919 100755
 +	return_value=$?
 +	if [ $return_value -ne 0 ]; then
 +		log_error "Failed to repack archives"
-+		return $return_value
-+	fi
-+
-+	log "Configuring APT mirror"
-+	configure_apt_mirror
-+	return_value=$?
-+	if [ $return_value -ne 0 ]; then
-+		log_error "Failed to configure APT mirror"
 +		return $return_value
 +	fi
 +
@@ -88,27 +88,25 @@ index 723993d6dc..2889c7e919 100755
 +	local chosen="$TERMUX_PREFIX/etc/termux/chosen_mirrors"
 +	local pkg_bin="$TERMUX_PREFIX/bin/pkg"
 +
-+	# Write sources.list directly so apt can install packages
-+	# regardless of mirror selection state.
-+	printf 'deb %s stable main\n' "$repo_url" > "$apt_sources"
++	# Write sources.list so apt works regardless of mirror selection state.
++	echo "deb $repo_url stable main" > "$apt_sources"
 +
-+	# Create a default mirror file and select it as chosen_mirrors.
-+	# This makes pkg take the "single mirror selected" code path and
-+	# avoids the find commands that abort pkg when regional mirror
-+	# directories do not exist in this build.
++	# Create mirrors/default in the format pkg expects and symlink
++	# chosen_mirrors to it so pkg takes the "single mirror selected"
++	# path, avoiding find commands on non-existent regional dirs.
 +	mkdir -p "$mirror_dir"
-+	printf '%s\n' "$repo_url" > "$mirror_file"
++	{ echo "WEIGHT=10"; echo "MAIN=\"$repo_url\""; } > "$mirror_file"
 +	ln -sf "$mirror_file" "$chosen"
 +
-+	# Patch the pkg script in-place to remove the warning echo and
-+	# the find commands for regional mirrors that do not exist.
-+	# This is a safeguard for pkg versions that ignore chosen_mirrors.
++	# Belt-and-suspenders: remove warning echo and regional find commands
++	# from the compiled pkg script in case chosen_mirrors is not honoured.
 +	if [ -f "$pkg_bin" ]; then
 +		sed -i '/No mirror or mirror group selected/d' "$pkg_bin"
 +		sed -i '/find.*{asia,chinese_mainland,europe,north_america,oceania,russia}/d' "$pkg_bin"
 +	fi
-
++
 +	return 0
  }
-
+ 
  run_package_postinst_maintainer_scripts() {
+ 
