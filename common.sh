@@ -105,6 +105,11 @@ declare -a PATCHES=(
     # Must come AFTER termux-tools-update-package-name.patch (same file)
     "termux-tools-pkg-fix-mirror.patch"
 
+    # Patches pkg.in (termux-tools source) so the 'else' branch (no mirror
+    # configured) simply returns instead of echo+find on non-existent dirs.
+    # This is the root-cause fix: the compiled pkg script won't abort anymore.
+    "termux-tools-pkg-source-fix.patch"
+
     # Cleanup OpenJDK 21 to remove postinst & prerm scripts
     "openjdk-21-cleanup.patch"
 

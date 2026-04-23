@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000000..000000000a
 --- /dev/null
 +++ b/packages/termux-tools/002-fix-pkg-mirror.patch
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,19 @@
 +--- a/scripts/pkg.in
 ++++ b/scripts/pkg.in
 +@@ -204,13 +204,11 @@
