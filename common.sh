@@ -61,12 +61,7 @@ declare -a PATCHES=(
     # Adds our own GPG keys
     "termux-keyring.patch"
 
-    # Fix pkg.in before compilation via build.sh termux_step_pre_configure.
-    # Removes mirror-warning, failing find commands, and replaces the else
-    # branch with an early return so sources.list from bootstrap is preserved.
-    #"termux-tools-pkg-fix-mirror.patch"
-
-    # Update mirror configurations (removes mirrors/ subdir from build)
+    # Update mirror configurations
     "termux-tools-mirrors.patch"
 
     # Update motd
@@ -97,10 +92,13 @@ declare -a PATCHES=(
     # So we force termux-packages to build using CMake instead of Makefile
     "libuv-force-cmake-build.patch"
 
+    # Changes for our version of bootstrap-*.zip files
+    # This also handles the process of creating a brotli archive
+    # from the generated ZIP archive
+    "scripts-generate-bootstraps-CoGo-changes.patch"
+
     # Update package name in termux-tools
     "termux-tools-update-package-name.patch"
-
-
 
     # Cleanup OpenJDK 21 to remove postinst & prerm scripts
     "openjdk-21-cleanup.patch"
@@ -140,43 +138,8 @@ declare -a PATCHES=(
     # infozip on SourceForge has an unusual path structure;
     # use Debian pool mirrors (same content, guaranteed reliable)
     "unzip-fix-srcurl.patch"
-    "zip-fix-srcurl.patch")
-
-
-patch_bootstrap_generator() {
-    local bootstrap_script="$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh"
-
-    if [[ ! -f "$bootstrap_script" ]]; then
-        scribe_error_exit "Bootstrap generator not found: ${bootstrap_script}"
-    fi
-
-    # Remove the Android 10-only package branch that pulls command-not-found
-    # or proot. Keep the surrounding shell syntax intact by replacing the
-    # whole block with a no-op.
-    python - "$bootstrap_script" <<'PY2'
-from pathlib import Path
-import re
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text()
-pattern = re.compile(
-    r"if ! \${BOOTSTRAP_ANDROID10_COMPATIBLE}; then\s*"
-    r"pull_package command-not-found\s*"
-    r"else\s*"
-    r"pull_package proot\s*"
-    r"fi\s*",
-    re.S,
+    "zip-fix-srcurl.patch"
 )
-replacement = ": # minimal bootstrap: no command-not-found or proot\n\n"
-text, count = pattern.subn(replacement, text, count=1)
-if count != 1:
-    raise SystemExit('expected command-not-found/proot block not found')
-path.write_text(text)
-PY2
-}
-
-
 
 # Sets up the termux-packages submodule: substitutes package name,
 # installs the GPG key, generates template-based patches, applies
@@ -213,7 +176,6 @@ setup_termux_packages() {
     termux_tools_update_package_name_patch="$script_dir/patches/termux-tools-update-package-name.patch"
     sed "s|@TERMUX_PACKAGE_NAME@|$COTG_PACKAGE_NAME|g" "${termux_tools_update_package_name_patch}.in" > "${termux_tools_update_package_name_patch}"
 
-
     # Apply patches
     for patch in "${PATCHES[@]}"; do
         scribe_info "Applying patch: ${patch}"
@@ -226,8 +188,6 @@ setup_termux_packages() {
     # Update the packages repository
     grep -rnI . -e "https://packages-cf.termux.dev/apt/termux-main" -l |\
         xargs -L1 sed -i "s|https://packages-cf.termux.dev/apt/termux-main|${COTG_REPO}|g"
-
-    patch_bootstrap_generator
 
     # Marked patched
     touch .scribe-patched
