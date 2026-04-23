@@ -10,7 +10,7 @@ index 825f2a886e..0e4ca238a1 100755
  	(cd "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}"
  		# Do not store symlinks in bootstrap archive.
  		# Instead, put all information to SYMLINKS.txt
-@@ -288,13 +289,72 @@ create_bootstrap_archive() {
+@@ -288,13 +289,45 @@ create_bootstrap_archive() {
  			rm -f "$link"
  		done < <(find . -type l -print0)
  
@@ -28,7 +28,7 @@ index 825f2a886e..0e4ca238a1 100755
 +			grep ^7f454c46 |\
 +			cut -d' ' -f2- |\
 +			xargs -L1 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-
++
 +		# Create bootstrap ZIP file without compression
 +		echo "[*] Creating bootstrap archives"
 +		zip -qr0 "$bszip" ./*
