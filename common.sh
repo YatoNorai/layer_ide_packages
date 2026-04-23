@@ -64,10 +64,6 @@ declare -a PATCHES=(
     # Update mirror configurations
     "termux-tools-mirrors.patch"
 
-    # Fix pkg to not warn about missing regional mirrors and install a
-    # mirrors/default file pointing to our server so 'pkg install' works
-    "termux-tools-pkg-fix-mirror.patch"
-
     # Update motd
     "termux-tools-motd.patch"
 
@@ -103,6 +99,11 @@ declare -a PATCHES=(
 
     # Update package name in termux-tools
     "termux-tools-update-package-name.patch"
+
+    # Fix pkg to not warn about missing regional mirrors and install a
+    # mirrors/default file pointing to our server so 'pkg install' works
+    # Must come AFTER termux-tools-update-package-name.patch (same file)
+    "termux-tools-pkg-fix-mirror.patch"
 
     # Cleanup OpenJDK 21 to remove postinst & prerm scripts
     "openjdk-21-cleanup.patch"
