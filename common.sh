@@ -61,11 +61,12 @@ declare -a PATCHES=(
     # Adds our own GPG keys
     "termux-keyring.patch"
 
-    # Update mirror configurations
-    "termux-tools-mirrors.patch"
-
-    # Update motd
-    "termux-tools-motd.patch"
+    # Use our fork of termux-tools which has all layer-ide customizations baked in:
+    # - pkg mirror fix (no regional find commands, else returns early)
+    # - com.layer.ide package name
+    # - mirrors subdir removed from build
+    # - Code on the Go MOTD
+    "termux-tools-use-fork.patch"
 
     # Makes some of the packages depend on and link against libandroid-shmem.so
     # Required to fix some build failures
@@ -96,19 +97,6 @@ declare -a PATCHES=(
     # This also handles the process of creating a brotli archive
     # from the generated ZIP archive
     "scripts-generate-bootstraps-CoGo-changes.patch"
-
-    # Update package name in termux-tools
-    "termux-tools-update-package-name.patch"
-
-    # Fix pkg to not warn about missing regional mirrors and install a
-    # mirrors/default file pointing to our server so 'pkg install' works
-    # Must come AFTER termux-tools-update-package-name.patch (same file)
-    "termux-tools-pkg-fix-mirror.patch"
-
-    # Patches pkg.in (termux-tools source) so the 'else' branch (no mirror
-    # configured) simply returns instead of echo+find on non-existent dirs.
-    # This is the root-cause fix: the compiled pkg script won't abort anymore.
-    "termux-tools-pkg-source-fix.patch"
 
     # Cleanup OpenJDK 21 to remove postinst & prerm scripts
     "openjdk-21-cleanup.patch"
@@ -181,10 +169,6 @@ setup_termux_packages() {
     # Create termux-keyring.patch
     termux_keyring_patch="$script_dir/patches/termux-keyring.patch"
     sed "s|@COTG_GPG_KEY@|$(basename "$COTG_GPG_KEY")|g" "${termux_keyring_patch}.in" > "$termux_keyring_patch"
-
-    # Create termux-tools-update-package-name.patch
-    termux_tools_update_package_name_patch="$script_dir/patches/termux-tools-update-package-name.patch"
-    sed "s|@TERMUX_PACKAGE_NAME@|$COTG_PACKAGE_NAME|g" "${termux_tools_update_package_name_patch}.in" > "${termux_tools_update_package_name_patch}"
 
     # Apply patches
     for patch in "${PATCHES[@]}"; do
