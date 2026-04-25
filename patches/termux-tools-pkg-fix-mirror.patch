@@ -1,0 +1,18 @@
+diff --git a/packages/termux-tools/build.sh b/packages/termux-tools/build.sh
+--- a/packages/termux-tools/build.sh
++++ b/packages/termux-tools/build.sh
+@@ -26,2 +26,14 @@ termux_step_pre_configure() {
++	# Fix scripts/pkg.in before compilation: remove mirror warning and failing
++	# find commands for regional dirs that do not exist in this build.
++	sed -i '/No mirror or mirror group selected/d' scripts/pkg.in
++	sed -i '/mirrors+=.*find.*{asia,chinese_mainland,europe,north_america,oceania,russia}/d' scripts/pkg.in
+ 	autoreconf -vfi
+ }
++
++termux_step_post_make_install() {
++	# Install a minimal mirrors/default so pkg can resolve the repository URL.
++	# The URL below is replaced with COTG_REPO by layer_ide_packages/common.sh.
++	mkdir -p "${TERMUX_PREFIX}/etc/termux/mirrors"
++	echo 'WEIGHT=10' > "${TERMUX_PREFIX}/etc/termux/mirrors/default"
++	echo 'MAIN="https://packages-cf.termux.dev/apt/termux-main"' >> "${TERMUX_PREFIX}/etc/termux/mirrors/default"
++}

@@ -1,0 +1,31 @@
+diff --git a/packages/termux-tools/001-exclude-mirrors.patch b/packages/termux-tools/001-exclude-mirrors.patch
+new file mode 100644
+index 0000000000..2e8cc314d8
+--- /dev/null
++++ b/packages/termux-tools/001-exclude-mirrors.patch
+@@ -0,0 +1,25 @@
++diff --git a/Makefile.am b/Makefile.am
++index 964dedf..d4fae7d 100644
++--- a/Makefile.am
+++++ b/Makefile.am
++@@ -16,7 +16,7 @@
++ # along with termux-tools.  If not, see
++ # <https://www.gnu.org/licenses/>.
++ 
++-SUBDIRS = . scripts doc mirrors motds src
+++SUBDIRS = . scripts doc motds src
++ 
++ CONFFILES = \
++ etc/motd \
++diff --git a/configure.ac b/configure.ac
++index 6d16ee2..91f839a 100644
++--- a/configure.ac
+++++ b/configure.ac
++@@ -95,6 +95,6 @@ AC_SUBST(termux_package_manager)
++ AC_PROG_LN_S
++ 
++ AC_CONFIG_FILES([Makefile scripts/Makefile doc/Makefile
++-mirrors/Makefile motds/Makefile src/Makefile])
+++motds/Makefile src/Makefile])
++ 
++ AC_OUTPUT

@@ -1,0 +1,11 @@
+# Force LF line endings for all text files that run on Linux/Docker
+*.sh        text eol=lf
+*.patch     text eol=lf
+*.patch.in  text eol=lf
+
+# Binary files — never touch line endings
+*.gpg       binary
+*.deb       binary
+*.zip       binary
+*.tar.gz    binary
+*.tar.xz    binary
