@@ -1,0 +1,199 @@
+name: Build and Publish Single Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Nome do pacote a compilar (ex: command-not-found)'
+        required: true
+        type: string
+      arch:
+        description: 'Arquitetura'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - aarch64
+          - arm
+
+env:
+  PACKAGE_NAME: com.layer.ide
+  REPO_URL: https://packagesyatonorai.duckdns.org/apt/termux-main
+  SSH_HOST: 158.101.9.154
+  BUILDER_IMAGE: ghcr.io/termux/package-builder:latest
+
+jobs:
+  build:
+    name: Build ${{ inputs.package }} (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: ${{ inputs.arch == 'both' && fromJson('["aarch64","arm"]') || fromJson(format('["{0}"]', inputs.arch)) }}
+      fail-fast: false
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Pull builder image
+        run: docker pull "$BUILDER_IMAGE"
+
+      - name: Build ${{ inputs.package }} for ${{ matrix.arch }}
+        run: |
+          mkdir -p output/${{ matrix.arch }}
+          docker run --rm \
+            --privileged \
+            -e HOME=/home/builder \
+            -e PACKAGE_NAME="$PACKAGE_NAME" \
+            -e REPO_URL="$REPO_URL" \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            "$BUILDER_IMAGE" \
+            bash -c "
+              find /workspace -maxdepth 1 -name '*.sh' -exec sed -i 's/\r//' {} +
+              find /workspace/patches -name '*.patch*' -exec sed -i 's/\r//' {} + 2>/dev/null || true
+              export HOME=/home/builder
+              mkdir -p output
+              ./build.sh \
+                -a '${{ matrix.arch }}' \
+                -e \
+                -p \"\$PACKAGE_NAME\" \
+                -r \"\$REPO_URL\" \
+                -s layer-ide.gpg \
+                '${{ inputs.package }}'
+            "
+
+      - name: Archive new debs
+        run: |
+          mapfile -t debs < <(find "output/${{ matrix.arch }}" -maxdepth 1 -name '*.deb' -printf '%f\n')
+
+          if [[ ${#debs[@]} -eq 0 ]]; then
+            echo "::error::No .deb files found in output/${{ matrix.arch }}/ – did the build succeed?"
+            exit 1
+          fi
+
+          echo "Packaging ${#debs[@]} .deb file(s): ${debs[*]}"
+
+          tar -czf "pkg-${{ inputs.package }}-${{ matrix.arch }}.tar.gz" \
+            -C "output/${{ matrix.arch }}" \
+            "${debs[@]}"
+
+          echo "Built debs:"
+          tar -tzf "pkg-${{ inputs.package }}-${{ matrix.arch }}.tar.gz"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ inputs.package }}-${{ matrix.arch }}
+          path: pkg-${{ inputs.package }}-${{ matrix.arch }}.tar.gz
+          retention-days: 3
+          if-no-files-found: error
+
+  publish:
+    name: Add to APT repository and upload
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      actions: read
+
+    steps:
+      - name: Checkout repository (no submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Download new debs (aarch64)
+        if: inputs.arch == 'both' || inputs.arch == 'aarch64'
+        uses: actions/download-artifact@v4
+        with:
+          name: pkg-${{ inputs.package }}-aarch64
+          path: .
+
+      - name: Download new debs (arm)
+        if: inputs.arch == 'both' || inputs.arch == 'arm'
+        uses: actions/download-artifact@v4
+        with:
+          name: pkg-${{ inputs.package }}-arm
+          path: .
+
+      - name: Install dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y wget gnupg rsync openssh-client
+
+      - name: Fetch current APT repo from server and add new debs
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          REMOTE="${{ secrets.SSH_USER }}@$SSH_HOST"
+          RPATH="${{ secrets.SSH_REMOTE_PATH }}"
+
+          # Download current repo from server (includes pool/*.deb)
+          mkdir -p output/repo
+          rsync -avz \
+            -e "$SSH" \
+            "$REMOTE:$RPATH/" \
+            output/repo/
+
+          # Restore existing .deb files from the downloaded pool back into
+          # output/{arch}/ so generate-apt-repo.sh includes them alongside
+          # the new package — without this, every run wipes the server.
+          mkdir -p output/aarch64 output/arm
+          while IFS= read -r deb; do
+            fname=$(basename "$deb")
+            if [[ "$fname" == *_aarch64.deb ]]; then
+              cp "$deb" output/aarch64/
+            elif [[ "$fname" == *_arm.deb ]]; then
+              cp "$deb" output/arm/
+            fi
+          done < <(find output/repo/pool -name '*.deb' 2>/dev/null)
+
+          # Extract new debs on top (overwrites old version of the same package)
+          for f in pkg-${{ inputs.package }}-*.tar.gz; do
+            arch=$(echo "$f" | sed 's/pkg-.*-\(.*\)\.tar\.gz/\1/')
+            tar -xzf "$f" -C "output/$arch/"
+          done
+
+      - name: Regenerate APT repository index
+        run: |
+          sed -i 's/\r//' generate-apt-repo.sh common.sh utils.sh packages.sh
+          bash generate-apt-repo.sh
+
+      - name: Sign APT repository
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          GPG_KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5}' | head -1)
+          echo "$GPG_PASSPHRASE" | \
+            gpg --batch --yes --passphrase-fd 0 \
+                --pinentry-mode loopback \
+                --default-key "$GPG_KEY_ID" \
+                --digest-algo SHA256 --clearsign \
+                -o output/repo/dists/stable/InRelease \
+                output/repo/dists/stable/Release
+
+      - name: Upload updated APT repository to server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          REMOTE="${{ secrets.SSH_USER }}@$SSH_HOST"
+          RPATH="${{ secrets.SSH_REMOTE_PATH }}"
+
+          $SSH "$REMOTE" "sudo mkdir -p '$RPATH' && sudo chown -R \$USER:\$USER '$RPATH'"
+
+          rsync -avz --delete --no-group \
+            -e "$SSH" \
+            output/repo/ \
+            "$REMOTE:$RPATH/"
+
+          echo "Package '${{ inputs.package }}' added to APT repo ✓"

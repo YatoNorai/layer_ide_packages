@@ -1,0 +1,10 @@
+diff --git a/packages/termux-tools/build.sh b/packages/termux-tools/build.sh
+--- a/packages/termux-tools/build.sh
++++ b/packages/termux-tools/build.sh
+@@ -5,4 +5,4 @@ TERMUX_PKG_MAINTAINER="@termux"
+ TERMUX_PKG_VERSION="1.46.0+really1.45.0"
+ TERMUX_PKG_REVISION=1
+-TERMUX_PKG_SRCURL=https://github.com/termux/termux-tools/archive/refs/tags/v1.45.0.tar.gz
+-TERMUX_PKG_SHA256=1ae29b1b875d95cc626dae323b45a2ace759969862d96094b2fa6d13bffe20d2
++TERMUX_PKG_SRCURL=https://github.com/YatoNorai/termux-tools/archive/refs/heads/layer-ide-main.tar.gz
++TERMUX_PKG_SHA256=e72a7c06dba12cca8d2580dd02588a45d2ca2b12c19f94a3183556d46fef0ebd

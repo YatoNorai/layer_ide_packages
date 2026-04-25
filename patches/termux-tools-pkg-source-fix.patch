@@ -1,0 +1,25 @@
+diff --git a/packages/termux-tools/002-fix-pkg-mirror.patch b/packages/termux-tools/002-fix-pkg-mirror.patch
+new file mode 100644
+index 0000000000..000000000a
+--- /dev/null
++++ b/packages/termux-tools/002-fix-pkg-mirror.patch
+@@ -0,0 +1,19 @@
++--- a/scripts/pkg.in
+++++ b/scripts/pkg.in
++@@ -204,13 +204,11 @@
++ 		# Single mirror selected
++ 		mirrors=("$(realpath "@TERMUX_PREFIX@/etc/termux/chosen_mirrors")")
++ 	elif [ -L "@TERMUX_PREFIX@/etc/termux/chosen_mirrors" ]; then
++-		# Broken symlink, use all mirrors
+++		# Broken symlink - use default mirror only (no regional mirrors in this build)
++ 		mirrors=("${MIRROR_BASE_DIR}/default")
++-		mirrors+=($(find "${MIRROR_BASE_DIR}"/{asia,chinese_mainland,europe,north_america,oceania,russia}/ -type f ! -name "*\.dpkg-old" ! -name "*\.dpkg-new" ! -name "*~"))
++ 	else
++-		echo "No mirror or mirror group selected. You might want to select one by running 'termux-change-repo'"
++-		mirrors=("${MIRROR_BASE_DIR}/default")
++-		mirrors+=($(find ${MIRROR_BASE_DIR}/{asia,chinese_mainland,europe,north_america,oceania,russia}/ -type f ! -name "*\.dpkg-old" ! -name "*\.dpkg-new" ! -name "*~"))
+++		# No mirror configured. sources.list was set at bootstrap time; keep it as-is.
+++		return
++ 	fi
++ 
++ 	# Ensure `curl` can execute, otherwise all mirror checks will fail with `bad`.
