@@ -27,6 +27,24 @@ usage() {
     echo "  -h        Show this help message and exit."
 }
 
+normalize_bootstrap_archive() {
+    local generated_zip="$1"
+    local temp_dir
+    local extracted_dir
+
+    temp_dir=$(mktemp -d)
+    extracted_dir="${temp_dir}/extracted"
+    mkdir -p "$extracted_dir"
+
+    unzip -qq "$generated_zip" -d "$extracted_dir"
+    rm -f "$generated_zip" "${generated_zip}.9"
+
+    (cd "$extracted_dir" && zip -qr0 "$generated_zip" ./*)
+    (cd "$extracted_dir" && zip -qr9 "${generated_zip}.9" ./*)
+
+    rm -rf "$temp_dir"
+}
+
 build_boostrap() {
     variant="$1"
     arch="$2"
@@ -64,6 +82,7 @@ build_boostrap() {
     if ! {
         set -x
         time "$TERMUX_PACKAGES_DIR/scripts/generate-bootstraps.sh" \
+            --android10 \
             --architectures "$arch" \
             --repository "$repo" \
             --add "${packages}" |&\
@@ -71,6 +90,10 @@ build_boostrap() {
     }; then
         scribe_error_exit "Failed to generate boostrap for ${arch} ${variant}."
     fi
+
+    # Normalize the generated archive so we always ship
+    # the minimal uncompressed ZIP plus the max-compressed variant.
+    normalize_bootstrap_archive "${bootstrap_name}"
 
     # Rename the built files
     mv "${bootstrap_name}" "${bootstrap_out}"
